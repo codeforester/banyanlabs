@@ -16,7 +16,7 @@
 # Quick Reference
 # --------------------------------------------------------------------------------------------------------------------
 # Sourcing:
-#   source "<repo>/shared/scripts/lib_std.sh"
+#   source "<repo>/cli/bash/lib/std/lib_std.sh"
 #
 # Caller-visible globals:
 #   __SCRIPT_ARGS__   Original "$@" before lib_std consumed global flags.
@@ -38,7 +38,8 @@
 #   add_to_path -p "/opt/tools"  # inject directories without duplicates.
 #
 # Notes:
-#   - Global options --debug/--verbose/--utc/--color are stripped from "$@" automatically.
+#   - Global options --debug-wrapper/--verbose-wrapper/--utc-wrapper/--color are stripped from "$@" automatically.
+#   - Wrappers may override the caller path seen by this library through BANYAN_BASH_BOOTSTRAP_SOURCE.
 #
 
 ################################################# INITIALIZATION #######################################################
@@ -55,11 +56,14 @@ readonly __LIB_STD_PATH__="${BASH_SOURCE[0]}"
 # Memorize the original script arguments at the very beginning.
 # This allows the library to parse global options before the main script does.
 # We retain the original arguments in __SCRIPT_ARGS__ and the script source directory in __SCRIPT_DIR__ as readonly
-# variables which could be used by the caller.
+# variables which could be used by the caller. When a wrapper preloads this library on behalf of another script, it can
+# provide BANYAN_BASH_BOOTSTRAP_SOURCE so __SCRIPT_DIR__ still resolves to the real command script.
 #
 readonly __SCRIPT_ARGS__=("$@")
 __new_args__=()
-readonly __SCRIPT_DIR__=$(cd -- "$(dirname -- "${BASH_SOURCE[1]}" )" &>/dev/null && pwd -P)
+readonly __SCRIPT_DIR__=$(
+    cd -- "$(dirname -- "${BANYAN_BASH_BOOTSTRAP_SOURCE:-${BASH_SOURCE[1]}}" )" &>/dev/null && pwd -P
+)
 
 ############################################ BASH VERSION CHECKER #######################################################
 

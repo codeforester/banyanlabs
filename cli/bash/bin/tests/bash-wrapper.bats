@@ -1,0 +1,255 @@
+#!/usr/bin/env bats
+
+load ../../tests/test_helper.bash
+
+create_bare_wrapper_layout() {
+    local layout_root="$1"
+
+    mkdir -p "$layout_root/bin" "$layout_root/commands" "$layout_root/lib/std"
+    cp "$BANYAN_BASH_DIR/bin/bash-wrapper" "$layout_root/bin/bash-wrapper"
+    cp "$BANYAN_BASH_DIR/lib/std/lib_std.sh" "$layout_root/lib/std/lib_std.sh"
+    chmod +x "$layout_root/bin/bash-wrapper"
+}
+
+create_wrapper_layout() {
+    local layout_root="$1"
+    local command_name="$2"
+    local command_script_name="${3:-main.sh}"
+
+    create_bare_wrapper_layout "$layout_root"
+    mkdir -p "$layout_root/commands/$command_name"
+
+    cat > "$layout_root/commands/$command_name/$command_script_name" <<'EOF'
+#!/usr/bin/env bash
+printf 'script_dir=%s\n' "${__SCRIPT_DIR__:-}"
+printf 'orig_args=%s\n' "${__SCRIPT_ARGS__[*]:-}"
+printf 'command=%s\n' "${BANYAN_BASH_COMMAND_NAME:-}"
+printf 'repo=%s\n' "${BANYAN_REPO_ROOT:-}"
+printf 'bash_root=%s\n' "${BANYAN_BASH_ROOT:-}"
+printf 'script=%s\n' "${BANYAN_BASH_COMMAND_SCRIPT:-}"
+printf 'argv=%s\n' "$*"
+EOF
+    chmod +x "$layout_root/commands/$command_name/$command_script_name"
+}
+
+@test "bash-wrapper dispatches directly to commands/<name>/main.sh" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+    local expected_repo_root expected_bash_root expected_script_path
+    local expected_command_dir
+
+    create_wrapper_layout "$layout" demo
+    expected_repo_root="$(cd "$repo_root" && pwd -P)"
+    expected_bash_root="$(cd "$layout" && pwd -P)"
+    expected_command_dir="$(cd "$layout/commands/demo" && pwd -P)"
+    expected_script_path="$(cd "$layout/commands/demo" && pwd -P)/main.sh"
+
+    run "$layout/bin/bash-wrapper" demo --debug-wrapper alpha beta
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"script_dir=$expected_command_dir"* ]]
+    [[ "$output" == *"orig_args=--debug-wrapper alpha beta"* ]]
+    [[ "$output" == *"command=demo"* ]]
+    [[ "$output" == *"repo=$expected_repo_root"* ]]
+    [[ "$output" == *"bash_root=$expected_bash_root"* ]]
+    [[ "$output" == *"script=$expected_script_path"* ]]
+    [[ "$output" == *"argv=alpha beta"* ]]
+}
+
+@test "symlink name selects the command" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+    local expected_script_path
+    local expected_command_dir
+
+    create_wrapper_layout "$layout" greet
+    ln -s bash-wrapper "$layout/bin/greet"
+    expected_command_dir="$(cd "$layout/commands/greet" && pwd -P)"
+    expected_script_path="$(cd "$layout/commands/greet" && pwd -P)/main.sh"
+
+    run "$layout/bin/greet" hello world
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"script_dir=$expected_command_dir"* ]]
+    [[ "$output" == *"command=greet"* ]]
+    [[ "$output" == *"script=$expected_script_path"* ]]
+    [[ "$output" == *"argv=hello world"* ]]
+}
+
+@test "wrapper supports the fallback commands/<name>/<name>.sh layout" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+    local expected_script_path
+    local expected_command_dir
+
+    create_wrapper_layout "$layout" legacy "legacy.sh"
+    expected_command_dir="$(cd "$layout/commands/legacy" && pwd -P)"
+    expected_script_path="$(cd "$layout/commands/legacy" && pwd -P)/legacy.sh"
+
+    run "$layout/bin/bash-wrapper" legacy arg1
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"script_dir=$expected_command_dir"* ]]
+    [[ "$output" == *"command=legacy"* ]]
+    [[ "$output" == *"script=$expected_script_path"* ]]
+    [[ "$output" == *"argv=arg1"* ]]
+}
+
+@test "wrapper prints usage when no command is provided" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+
+    run "$layout/bin/bash-wrapper"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage:"* ]]
+}
+
+@test "wrapper prints usage for help flags" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+
+    run "$layout/bin/bash-wrapper" --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]]
+    [[ "$output" == *"Available commands:"* ]]
+}
+
+@test "wrapper lists commands with command scripts and skips empty directories" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_wrapper_layout "$layout" alpha
+    mkdir -p "$layout/commands/empty-dir"
+    mkdir -p "$layout/commands/readme-only"
+    printf '# no script here\n' > "$layout/commands/readme-only/README.md"
+    mkdir -p "$layout/commands/legacy"
+    cat > "$layout/commands/legacy/legacy.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "legacy"
+EOF
+    chmod +x "$layout/commands/legacy/legacy.sh"
+
+    run "$layout/bin/bash-wrapper" --list
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"  alpha"* ]]
+    [[ "$output" == *"  legacy"* ]]
+    [[ "$output" != *"empty-dir"* ]]
+    [[ "$output" != *"readme-only"* ]]
+}
+
+@test "wrapper lists none when no commands exist yet" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+
+    run "$layout/bin/bash-wrapper" --list
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"  (none yet)"* ]]
+}
+
+@test "wrapper rejects invalid command names in direct mode" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+
+    run "$layout/bin/bash-wrapper" ../bad
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Invalid command name '../bad'."* ]]
+}
+
+@test "wrapper errors when the command directory is missing" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+
+    run "$layout/bin/bash-wrapper" missing
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Command 'missing' was not found"* ]]
+}
+
+@test "wrapper errors when the stdlib is missing" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_wrapper_layout "$layout" demo
+    rm -f "$layout/lib/std/lib_std.sh"
+
+    run "$layout/bin/bash-wrapper" demo
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Required stdlib"* ]]
+}
+
+@test "wrapper preloads stdlib so commands can call stdlib helpers without sourcing it" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+    mkdir -p "$layout/commands/stdlib-demo"
+    cat > "$layout/commands/stdlib-demo/main.sh" <<'EOF'
+#!/usr/bin/env bash
+set_log_level DEBUG
+run echo "wrapped output"
+safe_touch "$BATS_TEST_TMPDIR/stdout.txt"
+printf 'touched=%s\n' "$BATS_TEST_TMPDIR/stdout.txt"
+EOF
+    chmod +x "$layout/commands/stdlib-demo/main.sh"
+
+    run "$layout/bin/bash-wrapper" stdlib-demo
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"wrapped output"* ]]
+    [[ "$output" == *"touched=$BATS_TEST_TMPDIR/stdout.txt"* ]]
+    [ -f "$BATS_TEST_TMPDIR/stdout.txt" ]
+}
+
+@test "wrapper strips wrapper flags before the command sees argv" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+    mkdir -p "$layout/commands/flags"
+    cat > "$layout/commands/flags/main.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'orig=%s\n' "${__SCRIPT_ARGS__[*]}"
+printf 'argv=%s\n' "$*"
+printf 'log_debug=%s\n' "${LOG_DEBUG:-}"
+printf 'log_utc=%s\n' "${LOG_UTC:-}"
+EOF
+    chmod +x "$layout/commands/flags/main.sh"
+
+    run "$layout/bin/bash-wrapper" flags --verbose-wrapper --utc-wrapper --color one two
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"orig=--verbose-wrapper --utc-wrapper --color one two"* ]]
+    [[ "$output" == *"argv=one two"* ]]
+    [[ "$output" == *"log_debug=1"* ]]
+    [[ "$output" == *"log_utc=1"* ]]
+}
+
+@test "symlink invocation reports missing command scripts for the symlink name" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+    ln -s bash-wrapper "$layout/bin/orphan"
+    mkdir -p "$layout/commands/orphan"
+
+    run "$layout/bin/orphan"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Command 'orphan' was not found"* ]]
+}

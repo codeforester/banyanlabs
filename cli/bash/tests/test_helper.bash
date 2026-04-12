@@ -8,6 +8,7 @@ fi
 readonly BANYAN_BASH_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly BANYAN_BASH_DIR="$(cd "$BANYAN_BASH_TESTS_DIR/.." && pwd -P)"
 readonly BANYAN_REPO_ROOT="$(cd "$BANYAN_BASH_DIR/../.." && pwd -P)"
+readonly BANYAN_TEST_ORIG_PATH="$PATH"
 
 setup_test_tmpdir() {
     TEST_TMPDIR="${BATS_TEST_TMPDIR}/workspace"
