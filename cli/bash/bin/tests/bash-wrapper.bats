@@ -4,8 +4,12 @@ load ../../tests/test_helper.bash
 
 create_bare_wrapper_layout() {
     local layout_root="$1"
+    local cli_root
 
-    mkdir -p "$layout_root/bin" "$layout_root/commands" "$layout_root/lib/std"
+    cli_root="$(dirname "$layout_root")"
+
+    mkdir -p "$layout_root/bin" "$layout_root/commands" "$layout_root/lib/std" "$cli_root/env" "$cli_root/python"
+    cp "$BANYAN_REPO_ROOT/cli/env/banyanenv.sh" "$cli_root/env/banyanenv.sh"
     cp "$BANYAN_BASH_DIR/bin/bash-wrapper" "$layout_root/bin/bash-wrapper"
     cp "$BANYAN_BASH_DIR/lib/std/lib_std.sh" "$layout_root/lib/std/lib_std.sh"
     chmod +x "$layout_root/bin/bash-wrapper"
@@ -26,7 +30,13 @@ printf 'orig_args=%s\n' "${__SCRIPT_ARGS__[*]:-}"
 printf 'command=%s\n' "${BANYAN_BASH_COMMAND_NAME:-}"
 printf 'repo=%s\n' "${BANYAN_REPO_ROOT:-}"
 printf 'bash_root=%s\n' "${BANYAN_BASH_ROOT:-}"
+printf 'bin_dir=%s\n' "${BANYAN_BASH_BIN_DIR:-}"
+printf 'env_script=%s\n' "${BANYAN_CLI_ENV_SCRIPT:-}"
 printf 'script=%s\n' "${BANYAN_BASH_COMMAND_SCRIPT:-}"
+case ":$PATH:" in
+    *":${BANYAN_BASH_BIN_DIR:-__missing__}:"*) printf 'path_has_bin=yes\n' ;;
+    *) printf 'path_has_bin=no\n' ;;
+esac
 printf 'argv=%s\n' "$*"
 EOF
     chmod +x "$layout_root/commands/$command_name/$command_script_name"
@@ -35,12 +45,14 @@ EOF
 @test "bash-wrapper dispatches directly to commands/<name>/main.sh" {
     local repo_root="$BATS_TEST_TMPDIR/repo"
     local layout="$repo_root/cli/bash"
-    local expected_repo_root expected_bash_root expected_script_path
+    local expected_repo_root expected_bash_root expected_bin_dir expected_env_script expected_script_path
     local expected_command_dir
 
     create_wrapper_layout "$layout" demo
     expected_repo_root="$(cd "$repo_root" && pwd -P)"
     expected_bash_root="$(cd "$layout" && pwd -P)"
+    expected_bin_dir="$(cd "$layout/bin" && pwd -P)"
+    expected_env_script="$(cd "$repo_root/cli/env" && pwd -P)/banyanenv.sh"
     expected_command_dir="$(cd "$layout/commands/demo" && pwd -P)"
     expected_script_path="$(cd "$layout/commands/demo" && pwd -P)/main.sh"
 
@@ -52,7 +64,10 @@ EOF
     [[ "$output" == *"command=demo"* ]]
     [[ "$output" == *"repo=$expected_repo_root"* ]]
     [[ "$output" == *"bash_root=$expected_bash_root"* ]]
+    [[ "$output" == *"bin_dir=$expected_bin_dir"* ]]
+    [[ "$output" == *"env_script=$expected_env_script"* ]]
     [[ "$output" == *"script=$expected_script_path"* ]]
+    [[ "$output" == *"path_has_bin=yes"* ]]
     [[ "$output" == *"argv=alpha beta"* ]]
 }
 
@@ -191,6 +206,19 @@ EOF
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"Required stdlib"* ]]
+}
+
+@test "wrapper errors when banyanenv is missing" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_wrapper_layout "$layout" demo
+    rm -f "$repo_root/cli/env/banyanenv.sh"
+
+    run "$layout/bin/bash-wrapper" demo
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Required environment bootstrap"* ]]
 }
 
 @test "wrapper preloads stdlib so commands can call stdlib helpers without sourcing it" {

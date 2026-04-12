@@ -31,20 +31,30 @@ Behavior:
 
 Before sourcing the command script, `bash-wrapper`:
 
+- sources `../../env/banyanenv.sh` to initialize the shared CLI environment
 - resolves the repository, CLI, and Bash root directories
 - exports wrapper metadata:
   - `BANYAN_REPO_ROOT`
   - `BANYAN_CLI_ROOT`
   - `BANYAN_BASH_ROOT`
   - `BANYAN_BASH_BIN_DIR`
+  - `BANYAN_CLI_ENV_SCRIPT`
   - `BANYAN_BASH_COMMAND_NAME`
   - `BANYAN_BASH_COMMAND_DIR`
   - `BANYAN_BASH_COMMAND_SCRIPT`
 - preloads `../lib/std/lib_std.sh`
 
-That means command scripts can use the stdlib helpers without sourcing `lib_std.sh` themselves.
+That means command scripts inherit both the shared environment and the stdlib helpers without having to source them directly.
 
 The wrapper also sets `BANYAN_BASH_BOOTSTRAP_SOURCE` before loading the stdlib so stdlib path detection still treats the command script as the real caller.
+
+`banyanenv.sh` is also meant to be sourced from a user's shell startup file:
+
+```bash
+source /path/to/banyanlabs/cli/env/banyanenv.sh
+```
+
+That keeps interactive shells and wrapper-launched commands on the same environment contract.
 
 ## Examples
 

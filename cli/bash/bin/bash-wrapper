@@ -68,7 +68,7 @@ EOF
 }
 
 main() {
-    local invoked_as wrapper_path bin_dir bash_root cli_root repo_root commands_dir stdlib_path
+    local invoked_as wrapper_path bin_dir bash_root cli_root repo_root commands_dir stdlib_path env_script
     local command_name command_dir command_script
 
     invoked_as="$(basename "$0")"
@@ -107,6 +107,17 @@ main() {
             ;;
     esac
 
+    env_script="$cli_root/env/banyanenv.sh"
+    [[ -f "$env_script" ]] || die "Required environment bootstrap '$env_script' was not found."
+    source "$env_script" || die "Failed to initialize Banyan CLI environment from '$env_script'."
+
+    bash_root="${BANYAN_BASH_ROOT:-$bash_root}"
+    cli_root="${BANYAN_CLI_ROOT:-$cli_root}"
+    repo_root="${BANYAN_REPO_ROOT:-$repo_root}"
+    bin_dir="${BANYAN_BASH_BIN_DIR:-$bin_dir}"
+    commands_dir="${BANYAN_BASH_COMMANDS_DIR:-$commands_dir}"
+    env_script="${BANYAN_CLI_ENV_SCRIPT:-$env_script}"
+
     command_dir="$commands_dir/$command_name"
     if [[ -f "$command_dir/main.sh" ]]; then
         command_script="$command_dir/main.sh"
@@ -120,6 +131,7 @@ main() {
     export BANYAN_CLI_ROOT="$cli_root"
     export BANYAN_BASH_ROOT="$bash_root"
     export BANYAN_BASH_BIN_DIR="$bin_dir"
+    export BANYAN_CLI_ENV_SCRIPT="$env_script"
     export BANYAN_BASH_COMMAND_NAME="$command_name"
     export BANYAN_BASH_COMMAND_DIR="$command_dir"
     export BANYAN_BASH_COMMAND_SCRIPT="$command_script"
