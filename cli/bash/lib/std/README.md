@@ -17,6 +17,8 @@ Shared foundation library for Bash code under `cli/bash`.
 
 ## Usage
 
+Standalone script usage:
+
 ```bash
 source "/absolute/path/to/cli/bash/lib/std/lib_std.sh"
 
@@ -29,6 +31,8 @@ run echo "hello"
 
 - Requires Bash 4.0 or newer.
 - Sourcing the file runs `__stdlib_init__`.
+- `cli/bash/bin/bash-wrapper` preloads this library for command scripts so commands do not need per-command stdlib sourcing boilerplate.
+- The wrapper sets `BANYAN_BASH_BOOTSTRAP_SOURCE` before sourcing this file so `__SCRIPT_DIR__` still points at the command script rather than the wrapper.
 - Wrapper-level flags such as `--debug-wrapper` and `--verbose-wrapper` are consumed during initialization.
 - Other Bash libraries in this tree rely on this file for logging and error handling.
 

@@ -1,0 +1,71 @@
+# `cli/bash/bin`
+
+This directory holds the user-facing Bash entrypoints.
+
+## Layout
+
+- `bash-wrapper`
+  The shared dispatcher used to launch Bash commands.
+- `<command>` symlinks
+  Each command symlink points to `bash-wrapper`. The wrapper uses the invoked filename to decide which command to run.
+- `tests/`
+  Wrapper-specific BATS coverage for `bash-wrapper`.
+
+## How `bash-wrapper` Works
+
+The wrapper supports two invocation styles:
+
+```bash
+bash-wrapper <command> [args...]
+<command> [args...]
+```
+
+Behavior:
+
+- When invoked as `bash-wrapper`, the first argument is treated as the command name.
+- When invoked through a symlink, the symlink name is treated as the command name.
+- Commands are resolved under `../commands/<name>/main.sh`.
+- As a compatibility fallback, `../commands/<name>/<name>.sh` is also supported.
+
+## What the Wrapper Provides
+
+Before sourcing the command script, `bash-wrapper`:
+
+- resolves the repository, CLI, and Bash root directories
+- exports wrapper metadata:
+  - `BANYAN_REPO_ROOT`
+  - `BANYAN_CLI_ROOT`
+  - `BANYAN_BASH_ROOT`
+  - `BANYAN_BASH_BIN_DIR`
+  - `BANYAN_BASH_COMMAND_NAME`
+  - `BANYAN_BASH_COMMAND_DIR`
+  - `BANYAN_BASH_COMMAND_SCRIPT`
+- preloads `../lib/std/lib_std.sh`
+
+That means command scripts can use the stdlib helpers without sourcing `lib_std.sh` themselves.
+
+The wrapper also sets `BANYAN_BASH_BOOTSTRAP_SOURCE` before loading the stdlib so stdlib path detection still treats the command script as the real caller.
+
+## Examples
+
+Direct dispatch:
+
+```bash
+cli/bash/bin/bash-wrapper my-command --flag value
+```
+
+Symlink dispatch:
+
+```bash
+ln -s bash-wrapper cli/bash/bin/my-command
+cli/bash/bin/my-command --flag value
+```
+
+## Tests
+
+Run the wrapper test suite with:
+
+```bash
+cd cli/bash
+bats bin/tests/bash-wrapper.bats
+```
