@@ -18,7 +18,7 @@ create_bare_wrapper_layout() {
 create_wrapper_layout() {
     local layout_root="$1"
     local command_name="$2"
-    local command_script_name="${3:-main.sh}"
+    local command_script_name="${3:-$command_name.sh}"
 
     create_bare_wrapper_layout "$layout_root"
     mkdir -p "$layout_root/commands/$command_name"
@@ -42,7 +42,7 @@ EOF
     chmod +x "$layout_root/commands/$command_name/$command_script_name"
 }
 
-@test "bash-wrapper dispatches directly to commands/<name>/main.sh" {
+@test "bash-wrapper dispatches directly to commands/<name>/<name>.sh" {
     local repo_root="$BATS_TEST_TMPDIR/repo"
     local layout="$repo_root/cli/bash"
     local expected_repo_root expected_bash_root expected_bin_dir expected_env_script expected_script_path
@@ -54,9 +54,9 @@ EOF
     expected_bin_dir="$(cd "$layout/bin" && pwd -P)"
     expected_env_script="$(cd "$repo_root/cli/env" && pwd -P)/banyanenv.sh"
     expected_command_dir="$(cd "$layout/commands/demo" && pwd -P)"
-    expected_script_path="$(cd "$layout/commands/demo" && pwd -P)/main.sh"
+    expected_script_path="$(cd "$layout/commands/demo" && pwd -P)/demo.sh"
 
-    run "$layout/bin/bash-wrapper" demo --debug-wrapper alpha beta
+    run "$layout/bin/bash-wrapper" demo.sh --debug-wrapper alpha beta
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"script_dir=$expected_command_dir"* ]]
@@ -71,43 +71,24 @@ EOF
     [[ "$output" == *"argv=alpha beta"* ]]
 }
 
-@test "symlink name selects the command" {
+@test "symlink name with .sh suffix selects the command" {
     local repo_root="$BATS_TEST_TMPDIR/repo"
     local layout="$repo_root/cli/bash"
     local expected_script_path
     local expected_command_dir
 
     create_wrapper_layout "$layout" greet
-    ln -s bash-wrapper "$layout/bin/greet"
+    ln -s bash-wrapper "$layout/bin/greet.sh"
     expected_command_dir="$(cd "$layout/commands/greet" && pwd -P)"
-    expected_script_path="$(cd "$layout/commands/greet" && pwd -P)/main.sh"
+    expected_script_path="$(cd "$layout/commands/greet" && pwd -P)/greet.sh"
 
-    run "$layout/bin/greet" hello world
+    run "$layout/bin/greet.sh" hello world
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"script_dir=$expected_command_dir"* ]]
     [[ "$output" == *"command=greet"* ]]
     [[ "$output" == *"script=$expected_script_path"* ]]
     [[ "$output" == *"argv=hello world"* ]]
-}
-
-@test "wrapper supports the fallback commands/<name>/<name>.sh layout" {
-    local repo_root="$BATS_TEST_TMPDIR/repo"
-    local layout="$repo_root/cli/bash"
-    local expected_script_path
-    local expected_command_dir
-
-    create_wrapper_layout "$layout" legacy "legacy.sh"
-    expected_command_dir="$(cd "$layout/commands/legacy" && pwd -P)"
-    expected_script_path="$(cd "$layout/commands/legacy" && pwd -P)/legacy.sh"
-
-    run "$layout/bin/bash-wrapper" legacy arg1
-
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"script_dir=$expected_command_dir"* ]]
-    [[ "$output" == *"command=legacy"* ]]
-    [[ "$output" == *"script=$expected_script_path"* ]]
-    [[ "$output" == *"argv=arg1"* ]]
 }
 
 @test "wrapper prints usage when no command is provided" {
@@ -149,13 +130,20 @@ EOF
 echo "legacy"
 EOF
     chmod +x "$layout/commands/legacy/legacy.sh"
+    mkdir -p "$layout/commands/main-only"
+    cat > "$layout/commands/main-only/main.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "main-only"
+EOF
+    chmod +x "$layout/commands/main-only/main.sh"
 
     run "$layout/bin/bash-wrapper" --list
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"  alpha"* ]]
-    [[ "$output" == *"  legacy"* ]]
+    [[ "$output" == *"  alpha.sh"* ]]
+    [[ "$output" == *"  legacy.sh"* ]]
     [[ "$output" != *"empty-dir"* ]]
+    [[ "$output" != *"main-only"* ]]
     [[ "$output" != *"readme-only"* ]]
 }
 
@@ -189,10 +177,28 @@ EOF
 
     create_bare_wrapper_layout "$layout"
 
-    run "$layout/bin/bash-wrapper" missing
+    run "$layout/bin/bash-wrapper" missing.sh
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"Command 'missing' was not found"* ]]
+}
+
+@test "wrapper rejects main.sh-only command directories" {
+    local repo_root="$BATS_TEST_TMPDIR/repo"
+    local layout="$repo_root/cli/bash"
+
+    create_bare_wrapper_layout "$layout"
+    mkdir -p "$layout/commands/legacy"
+    cat > "$layout/commands/legacy/main.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "legacy"
+EOF
+    chmod +x "$layout/commands/legacy/main.sh"
+
+    run "$layout/bin/bash-wrapper" legacy.sh
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Command 'legacy' was not found"* ]]
 }
 
 @test "wrapper errors when the stdlib is missing" {
@@ -227,14 +233,14 @@ EOF
 
     create_bare_wrapper_layout "$layout"
     mkdir -p "$layout/commands/stdlib-demo"
-    cat > "$layout/commands/stdlib-demo/main.sh" <<'EOF'
+    cat > "$layout/commands/stdlib-demo/stdlib-demo.sh" <<'EOF'
 #!/usr/bin/env bash
 set_log_level DEBUG
 run echo "wrapped output"
 safe_touch "$BATS_TEST_TMPDIR/stdout.txt"
 printf 'touched=%s\n' "$BATS_TEST_TMPDIR/stdout.txt"
 EOF
-    chmod +x "$layout/commands/stdlib-demo/main.sh"
+    chmod +x "$layout/commands/stdlib-demo/stdlib-demo.sh"
 
     run "$layout/bin/bash-wrapper" stdlib-demo
 
@@ -250,14 +256,14 @@ EOF
 
     create_bare_wrapper_layout "$layout"
     mkdir -p "$layout/commands/flags"
-    cat > "$layout/commands/flags/main.sh" <<'EOF'
+    cat > "$layout/commands/flags/flags.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'orig=%s\n' "${__SCRIPT_ARGS__[*]}"
 printf 'argv=%s\n' "$*"
 printf 'log_debug=%s\n' "${LOG_DEBUG:-}"
 printf 'log_utc=%s\n' "${LOG_UTC:-}"
 EOF
-    chmod +x "$layout/commands/flags/main.sh"
+    chmod +x "$layout/commands/flags/flags.sh"
 
     run "$layout/bin/bash-wrapper" flags --verbose-wrapper --utc-wrapper --color one two
 
@@ -273,10 +279,10 @@ EOF
     local layout="$repo_root/cli/bash"
 
     create_bare_wrapper_layout "$layout"
-    ln -s bash-wrapper "$layout/bin/orphan"
+    ln -s bash-wrapper "$layout/bin/orphan.sh"
     mkdir -p "$layout/commands/orphan"
 
-    run "$layout/bin/orphan"
+    run "$layout/bin/orphan.sh"
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"Command 'orphan' was not found"* ]]
