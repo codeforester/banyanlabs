@@ -66,7 +66,7 @@ EOF
 
     create_script "$script" <<EOF
 #!/usr/bin/env bash
-export BANYAN_BASH_BOOTSTRAP_SOURCE="$command_dir/main.sh"
+export BANYAN_BASH_BOOTSTRAP_SOURCE="$command_dir/demo.sh"
 source "$STDLIB_PATH"
 printf 'script_dir=%s\n' "\$__SCRIPT_DIR__"
 EOF

@@ -6,7 +6,7 @@ This directory holds the user-facing Bash entrypoints.
 
 - `bash-wrapper`
   The shared dispatcher used to launch Bash commands.
-- `<command>` symlinks
+- `<command>.sh` symlinks
   Each command symlink points to `bash-wrapper`. The wrapper uses the invoked filename to decide which command to run.
 - `tests/`
   Wrapper-specific BATS coverage for `bash-wrapper`.
@@ -16,16 +16,16 @@ This directory holds the user-facing Bash entrypoints.
 The wrapper supports two invocation styles:
 
 ```bash
-bash-wrapper <command> [args...]
-<command> [args...]
+bash-wrapper <command>.sh [args...]
+<command>.sh [args...]
 ```
 
 Behavior:
 
 - When invoked as `bash-wrapper`, the first argument is treated as the command name.
-- When invoked through a symlink, the symlink name is treated as the command name.
-- Commands are resolved under `../commands/<name>/main.sh`.
-- As a compatibility fallback, `../commands/<name>/<name>.sh` is also supported.
+- Bash entrypoint symlinks are expected to end in `.sh`.
+- When invoked through a symlink, the wrapper strips the `.sh` suffix and uses the remaining name as the command name.
+- Commands are resolved under `../commands/<name>/<name>.sh`.
 
 ## What the Wrapper Provides
 
@@ -61,14 +61,14 @@ That keeps interactive shells and wrapper-launched commands on the same environm
 Direct dispatch:
 
 ```bash
-cli/bash/bin/bash-wrapper my-command --flag value
+cli/bash/bin/bash-wrapper my-command.sh --flag value
 ```
 
 Symlink dispatch:
 
 ```bash
-ln -s bash-wrapper cli/bash/bin/my-command
-cli/bash/bin/my-command --flag value
+ln -s bash-wrapper cli/bash/bin/my-command.sh
+cli/bash/bin/my-command.sh --flag value
 ```
 
 ## Tests

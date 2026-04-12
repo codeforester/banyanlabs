@@ -29,6 +29,16 @@ resolve_script_path() {
     printf '%s/%s\n' "$link_dir" "$(basename "$source_path")"
 }
 
+normalize_command_name() {
+    local command_name="${1:-}"
+
+    if [[ "$command_name" == *.sh && "$command_name" != ".sh" ]]; then
+        command_name="${command_name%.sh}"
+    fi
+
+    printf '%s\n' "$command_name"
+}
+
 list_commands() {
     local commands_dir="$1"
     local command_dir command_name found=0
@@ -38,8 +48,8 @@ list_commands() {
     while IFS= read -r command_dir; do
         [[ -d "$command_dir" ]] || continue
         command_name="$(basename "$command_dir")"
-        if [[ -f "$command_dir/main.sh" || -f "$command_dir/${command_name}.sh" ]]; then
-            printf '  %s\n' "$command_name"
+        if [[ -f "$command_dir/${command_name}.sh" ]]; then
+            printf '  %s.sh\n' "$command_name"
             found=1
         fi
     done < <(find "$commands_dir" -mindepth 1 -maxdepth 1 -type d | sort)
@@ -58,9 +68,9 @@ Usage:
 
 Behavior:
   - When invoked as 'bash-wrapper', the first argument is treated as the command name.
+  - Bash entrypoint symlinks are expected to end in '.sh'; the wrapper maps '<name>.sh' to command '<name>'.
   - When invoked through a symlink, the symlink name is treated as the command name.
-  - Commands are resolved under cli/bash/commands/<name>/main.sh.
-  - As a compatibility fallback, cli/bash/commands/<name>/<name>.sh is also accepted.
+  - Commands are resolved under cli/bash/commands/<name>/<name>.sh.
 
 Available commands:
 EOF
@@ -101,6 +111,8 @@ main() {
         command_name="$invoked_as"
     fi
 
+    command_name="$(normalize_command_name "$command_name")"
+
     case "$command_name" in
         ""|.|..|*/* )
             die "Invalid command name '$command_name'."
@@ -119,9 +131,7 @@ main() {
     env_script="${BANYAN_CLI_ENV_SCRIPT:-$env_script}"
 
     command_dir="$commands_dir/$command_name"
-    if [[ -f "$command_dir/main.sh" ]]; then
-        command_script="$command_dir/main.sh"
-    elif [[ -f "$command_dir/${command_name}.sh" ]]; then
+    if [[ -f "$command_dir/${command_name}.sh" ]]; then
         command_script="$command_dir/${command_name}.sh"
     else
         die "Command '$command_name' was not found under '$command_dir'."
