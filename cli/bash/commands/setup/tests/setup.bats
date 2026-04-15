@@ -61,13 +61,21 @@ create_brew_stub() {
 #!/usr/bin/env bash
 state_dir="${BANYAN_SETUP_TEST_STATE_DIR:?}"
 python_prefix="${BANYAN_SETUP_TEST_PYTHON_PREFIX:?}"
-python_formula="${BANYAN_SETUP_PYTHON_FORMULA:-python}"
+python_formula="${BANYAN_SETUP_PYTHON_FORMULA:-python@3.13}"
+bats_formula="${BANYAN_SETUP_BATS_FORMULA:-bats-core}"
 
 case "${1:-}" in
     list)
-        if [[ "${2:-}" == "$python_formula" && -f "$state_dir/python-installed" ]]; then
-            exit 0
-        fi
+        case "${2:-}" in
+            "$python_formula")
+                [[ -f "$state_dir/python-installed" ]]
+                exit $?
+                ;;
+            "$bats_formula")
+                [[ -f "$state_dir/bats-installed" ]]
+                exit $?
+                ;;
+        esac
         exit 1
         ;;
     install)
@@ -87,6 +95,11 @@ printf 'unexpected python3 args: %s\n' "$*" >&2
 exit 1
 PYEOF
             chmod +x "$python_prefix/bin/python3"
+            exit 0
+        fi
+        if [[ "${2:-}" == "$bats_formula" ]]; then
+            touch "$state_dir/bats-install-ran"
+            touch "$state_dir/bats-installed"
             exit 0
         fi
         printf 'unexpected brew install args: %s\n' "$*" >&2
@@ -118,13 +131,21 @@ cat > "${BANYAN_SETUP_TEST_MOCKBIN:?}/brew" <<'BREWEOF'
 #!/usr/bin/env bash
 state_dir="${BANYAN_SETUP_TEST_STATE_DIR:?}"
 python_prefix="${BANYAN_SETUP_TEST_PYTHON_PREFIX:?}"
-python_formula="${BANYAN_SETUP_PYTHON_FORMULA:-python}"
+python_formula="${BANYAN_SETUP_PYTHON_FORMULA:-python@3.13}"
+bats_formula="${BANYAN_SETUP_BATS_FORMULA:-bats-core}"
 
 case "${1:-}" in
     list)
-        if [[ "${2:-}" == "$python_formula" && -f "$state_dir/python-installed" ]]; then
-            exit 0
-        fi
+        case "${2:-}" in
+            "$python_formula")
+                [[ -f "$state_dir/python-installed" ]]
+                exit $?
+                ;;
+            "$bats_formula")
+                [[ -f "$state_dir/bats-installed" ]]
+                exit $?
+                ;;
+        esac
         exit 1
         ;;
     install)
@@ -144,6 +165,11 @@ printf 'unexpected python3 args: %s\n' "$*" >&2
 exit 1
 PYEOF
             chmod +x "$python_prefix/bin/python3"
+            exit 0
+        fi
+        if [[ "${2:-}" == "$bats_formula" ]]; then
+            touch "$state_dir/bats-install-ran"
+            touch "$state_dir/bats-installed"
             exit 0
         fi
         printf 'unexpected brew install args: %s\n' "$*" >&2
@@ -193,7 +219,8 @@ run_setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
     [[ "$output" == *"setup [options] <command>"* ]]
-    [[ "$output" == *"Prepare the local Banyan Labs CLI environment on macOS."* ]]
+    [[ "$output" == *"check"* ]]
+    [[ "$output" == *"Prepare and verify the local Banyan Labs CLI environment on macOS."* ]]
 }
 
 @test "setup requires an explicit command" {
@@ -213,13 +240,14 @@ run_setup() {
 }
 
 @test "setup is idempotent when brew, xcode tools, python, and the venv already exist" {
-    local venv_dir="$TEST_HOME/.banyan_venv"
+    local venv_dir="$TEST_HOME/.banyanlabs.d/.venv"
 
     create_brew_stub
     create_xcode_stubs
     touch "$TEST_STATE_DIR/xcode-installed"
     mkdir -p "$TEST_TMPDIR/CommandLineTools"
     touch "$TEST_STATE_DIR/python-installed"
+    touch "$TEST_STATE_DIR/bats-installed"
     mkdir -p "$venv_dir/bin"
     printf '#!/usr/bin/env bash\n' > "$venv_dir/bin/activate"
 
@@ -228,14 +256,16 @@ run_setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Homebrew is already installed."* ]]
     [[ "$output" == *"Xcode Command Line Tools are already installed."* ]]
-    [[ "$output" == *"Python formula 'python' is already installed via Homebrew."* ]]
+    [[ "$output" == *"Python formula 'python@3.13' is already installed via Homebrew."* ]]
+    [[ "$output" == *"BATS formula 'bats-core' is already installed via Homebrew."* ]]
     [[ "$output" == *"Virtual environment already exists at '$venv_dir'."* ]]
     [ ! -f "$TEST_STATE_DIR/python-install-ran" ]
+    [ ! -f "$TEST_STATE_DIR/bats-install-ran" ]
 }
 
 @test "setup installs missing dependencies and creates the Banyan virtual environment" {
     local installer
-    local venv_dir="$TEST_HOME/.banyan_venv"
+    local venv_dir="$TEST_HOME/.banyanlabs.d/.venv"
 
     create_xcode_stubs
     installer="$(create_homebrew_installer_stub)"
@@ -249,11 +279,13 @@ run_setup() {
     [[ "$output" == *"Installing Homebrew."* ]]
     [[ "$output" == *"Installing Xcode Command Line Tools."* ]]
     [[ "$output" == *"Xcode Command Line Tools installation detected."* ]]
-    [[ "$output" == *"Installing Python formula 'python' via Homebrew."* ]]
+    [[ "$output" == *"Installing Python formula 'python@3.13' via Homebrew."* ]]
+    [[ "$output" == *"Installing BATS formula 'bats-core' via Homebrew."* ]]
     [[ "$output" == *"Creating Python virtual environment at '$venv_dir'."* ]]
     [[ "$output" == *"Banyan Labs CLI setup is complete."* ]]
     [ -f "$TEST_STATE_DIR/homebrew-install-ran" ]
     [ -f "$TEST_STATE_DIR/python-install-ran" ]
+    [ -f "$TEST_STATE_DIR/bats-install-ran" ]
     [ -f "$venv_dir/pyvenv.cfg" ]
 }
 
@@ -263,9 +295,46 @@ run_setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"[DRY-RUN] Would install Homebrew using the official installer."* ]]
     [[ "$output" == *"[DRY-RUN] Would wait for Xcode Command Line Tools installation to complete."* ]]
-    [[ "$output" == *"[DRY-RUN] Would install Python formula 'python' via Homebrew."* ]]
-    [[ "$output" == *"[DRY-RUN] Would create Python virtual environment at '$TEST_HOME/.banyan_venv'."* ]]
-    [ ! -e "$TEST_HOME/.banyan_venv" ]
+    [[ "$output" == *"[DRY-RUN] Would install Python formula 'python@3.13' via Homebrew."* ]]
+    [[ "$output" == *"[DRY-RUN] Would install BATS formula 'bats-core' via Homebrew."* ]]
+    [[ "$output" == *"[DRY-RUN] Would create Python virtual environment at '$TEST_HOME/.banyanlabs.d/.venv'."* ]]
+    [[ "$output" == *"[DRY-RUN] Banyan Labs CLI setup check is complete."* ]]
+    [ ! -e "$TEST_HOME/.banyanlabs.d/.venv" ]
+}
+
+@test "setup check passes when all required components are present" {
+    local venv_dir="$TEST_HOME/.banyanlabs.d/.venv"
+
+    create_brew_stub
+    create_xcode_stubs
+    touch "$TEST_STATE_DIR/xcode-installed"
+    mkdir -p "$TEST_TMPDIR/CommandLineTools"
+    touch "$TEST_STATE_DIR/python-installed"
+    touch "$TEST_STATE_DIR/bats-installed"
+    mkdir -p "$venv_dir/bin"
+    printf '#!/usr/bin/env bash\n' > "$venv_dir/bin/activate"
+
+    run_setup "$BANYAN_REPO_ROOT/cli/bash/bin/setup.sh" check
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Homebrew is installed."* ]]
+    [[ "$output" == *"Xcode Command Line Tools are installed."* ]]
+    [[ "$output" == *"Python formula 'python@3.13' is installed via Homebrew."* ]]
+    [[ "$output" == *"BATS formula 'bats-core' is installed via Homebrew."* ]]
+    [[ "$output" == *"Virtual environment exists at '$venv_dir'."* ]]
+    [[ "$output" == *"Banyan Labs CLI environment check passed."* ]]
+}
+
+@test "setup check fails when required components are missing" {
+    run_setup "$BANYAN_REPO_ROOT/cli/bash/bin/setup.sh" check
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Homebrew is not installed."* ]]
+    [[ "$output" == *"Xcode Command Line Tools are not installed."* ]]
+    [[ "$output" == *"Python formula 'python@3.13' is not installed via Homebrew."* ]]
+    [[ "$output" == *"BATS formula 'bats-core' is not installed via Homebrew."* ]]
+    [[ "$output" == *"Virtual environment is missing at '$TEST_HOME/.banyanlabs.d/.venv'."* ]]
+    [[ "$output" == *"Banyan Labs CLI environment check found missing requirements."* ]]
 }
 
 @test "setup install enables DEBUG logs with -v" {

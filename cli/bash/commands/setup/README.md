@@ -9,7 +9,9 @@ The command is intentionally small and idempotent.
 ## Commands
 
 - `install`
-  Installs Homebrew, Xcode Command Line Tools, Python, and creates `$HOME/.banyan_venv`.
+  Installs Homebrew, Xcode Command Line Tools, Python 3.13, BATS, and creates `$HOME/.banyanlabs.d/.venv`.
+- `check`
+  Verifies the required local CLI setup without making changes. Exits non-zero if anything is missing.
 - `update-profile`
   Reserved for future shell profile updates. This subcommand is not implemented yet.
 
@@ -19,8 +21,23 @@ The `install` command performs these steps:
 
 1. install Homebrew if it is not already installed
 2. install Xcode Command Line Tools if they are not already installed
-3. install Python via Homebrew if it is not already installed
-4. create `$HOME/.banyan_venv` if it does not already exist
+3. install Python 3.13 via Homebrew if it is not already installed
+4. install BATS via Homebrew if it is not already installed
+5. create `$HOME/.banyanlabs.d/.venv` if it does not already exist
+
+The `.banyanlabs.d` directory is intended to hold additional Banyan Labs CLI state in the future, so the virtual environment now lives under that shared home.
+
+## Check Behavior
+
+The `check` command verifies the same base requirements as `install`:
+
+1. Homebrew is installed
+2. Xcode Command Line Tools are installed
+3. Python 3.13 is installed via Homebrew
+4. BATS is installed via Homebrew
+5. `$HOME/.banyanlabs.d/.venv` exists
+
+It exits with status `0` when everything is present and `1` when any required item is missing.
 
 ## What It Does Not Do Yet
 
@@ -40,6 +57,12 @@ Via the symlinked entrypoint:
 
 ```bash
 cli/bash/bin/setup.sh install
+```
+
+Check:
+
+```bash
+cli/bash/bin/setup.sh check
 ```
 
 Help:
@@ -66,6 +89,7 @@ The command supports a few environment-variable overrides, mainly for automation
 
 - `BANYAN_SETUP_VENV_DIR`
 - `BANYAN_SETUP_PYTHON_FORMULA`
+- `BANYAN_SETUP_BATS_FORMULA`
 - `BANYAN_SETUP_PYTHON_BIN`
 - `BANYAN_SETUP_BREW_BIN`
 - `BANYAN_SETUP_HOMEBREW_INSTALLER_SCRIPT`
