@@ -7,7 +7,9 @@ Usage:
 
 Commands:
   install
-    Install Homebrew, Xcode Command Line Tools, Python, and ~/.banyan_venv.
+    Install Homebrew, Xcode Command Line Tools, Python, BATS, and ~/.banyanlabs.d/.venv.
+  check
+    Verify the required local CLI setup without making changes.
   update-profile
     Reserved for future shell profile updates.
 
@@ -17,13 +19,21 @@ Options:
   -h, --help  Show this help text.
 
 Purpose:
-  Prepare the local Banyan Labs CLI environment on macOS.
+  Prepare and verify the local Banyan Labs CLI environment on macOS.
 
-What it does:
+Install does:
   1. Install Homebrew if needed.
   2. Install Xcode Command Line Tools if needed.
-  3. Install Python via Homebrew if needed.
-  4. Create ~/.banyan_venv if it does not already exist.
+  3. Install Python 3.13 via Homebrew if needed.
+  4. Install BATS via Homebrew if needed.
+  5. Create ~/.banyanlabs.d/.venv if it does not already exist.
+
+Check does:
+  1. Verify Homebrew is installed.
+  2. Verify Xcode Command Line Tools are installed.
+  3. Verify Python 3.13 is installed via Homebrew.
+  4. Verify BATS is installed via Homebrew.
+  5. Verify ~/.banyanlabs.d/.venv exists.
 
 Notes:
   - This command is intentionally idempotent.
@@ -35,12 +45,23 @@ setup_is_dry_run() {
     [[ "${DRY_RUN-}" == true || "${dry_run-}" == true ]]
 }
 
+setup_virtualenv_exists() {
+    local venv_dir
+
+    venv_dir="$(setup_venv_dir)"
+    [[ -f "$venv_dir/bin/activate" || -f "$venv_dir/pyvenv.cfg" ]]
+}
+
 setup_venv_dir() {
-    printf '%s\n' "${BANYAN_SETUP_VENV_DIR:-$HOME/.banyan_venv}"
+    printf '%s\n' "${BANYAN_SETUP_VENV_DIR:-$HOME/.banyanlabs.d/.venv}"
 }
 
 setup_python_formula() {
-    printf '%s\n' "${BANYAN_SETUP_PYTHON_FORMULA:-python}"
+    printf '%s\n' "${BANYAN_SETUP_PYTHON_FORMULA:-python@3.13}"
+}
+
+setup_bats_formula() {
+    printf '%s\n' "${BANYAN_SETUP_BATS_FORMULA:-bats-core}"
 }
 
 setup_xcode_tools_dir() {
@@ -195,8 +216,36 @@ setup_install_python() {
     run brew install "$formula"
 }
 
+setup_bats_installed() {
+    local formula
+
+    formula="$(setup_bats_formula)"
+    command -v brew >/dev/null 2>&1 && brew list "$formula" >/dev/null 2>&1
+}
+
+setup_install_bats() {
+    local formula
+
+    formula="$(setup_bats_formula)"
+
+    if setup_bats_installed; then
+        log_info "BATS formula '$formula' is already installed via Homebrew."
+        return 0
+    fi
+
+    if setup_is_dry_run; then
+        log_info "[DRY-RUN] Would install BATS formula '$formula' via Homebrew."
+        return 0
+    fi
+
+    command -v brew >/dev/null 2>&1 || fatal_error "Homebrew is required to install BATS formula '$formula'."
+
+    log_info "Installing BATS formula '$formula' via Homebrew."
+    run brew install "$formula"
+}
+
 setup_find_python_bin() {
-    local formula prefix
+    local formula prefix candidate candidates=()
 
     if [[ -n "${BANYAN_SETUP_PYTHON_BIN:-}" && -x "${BANYAN_SETUP_PYTHON_BIN}" ]]; then
         printf '%s\n' "${BANYAN_SETUP_PYTHON_BIN}"
@@ -206,9 +255,19 @@ setup_find_python_bin() {
     formula="$(setup_python_formula)"
     if command -v brew >/dev/null 2>&1; then
         prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
-        if [[ -n "$prefix" && -x "$prefix/bin/python3" ]]; then
-            printf '%s\n' "$prefix/bin/python3"
-            return 0
+        if [[ -n "$prefix" ]]; then
+            candidates+=("$prefix/bin/python3")
+            candidates+=("$prefix/libexec/bin/python3")
+            if [[ "$formula" == python@* ]]; then
+                candidates+=("$prefix/bin/python${formula#python@}")
+                candidates+=("$prefix/libexec/bin/python${formula#python@}")
+            fi
+            for candidate in "${candidates[@]}"; do
+                if [[ -x "$candidate" ]]; then
+                    printf '%s\n' "$candidate"
+                    return 0
+                fi
+            done
         fi
     fi
 
@@ -225,7 +284,7 @@ setup_create_virtualenv() {
 
     venv_dir="$(setup_venv_dir)"
 
-    if [[ -f "$venv_dir/bin/activate" || -f "$venv_dir/pyvenv.cfg" ]]; then
+    if setup_virtualenv_exists; then
         log_info "Virtual environment already exists at '$venv_dir'."
         return 0
     fi
@@ -242,14 +301,71 @@ setup_create_virtualenv() {
     run "$python_bin" -m venv "$venv_dir"
 }
 
+setup_run_check() {
+    local brew_bin="" venv_dir missing=0
+
+    setup_require_macos
+    venv_dir="$(setup_venv_dir)"
+
+    if brew_bin="$(setup_find_brew_bin)"; then
+        setup_refresh_brew_path || fatal_error "Homebrew is installed, but its bin directory could not be added to PATH."
+        log_info "Homebrew is installed."
+        log_debug "Resolved Homebrew binary: $brew_bin"
+    else
+        log_warn "Homebrew is not installed."
+        missing=1
+    fi
+
+    if setup_xcode_tools_installed; then
+        log_info "Xcode Command Line Tools are installed."
+    else
+        log_warn "Xcode Command Line Tools are not installed."
+        missing=1
+    fi
+
+    if setup_python_installed; then
+        log_info "Python formula '$(setup_python_formula)' is installed via Homebrew."
+    else
+        log_warn "Python formula '$(setup_python_formula)' is not installed via Homebrew."
+        missing=1
+    fi
+
+    if setup_bats_installed; then
+        log_info "BATS formula '$(setup_bats_formula)' is installed via Homebrew."
+    else
+        log_warn "BATS formula '$(setup_bats_formula)' is not installed via Homebrew."
+        missing=1
+    fi
+
+    if setup_virtualenv_exists; then
+        log_info "Virtual environment exists at '$venv_dir'."
+    else
+        log_warn "Virtual environment is missing at '$venv_dir'."
+        missing=1
+    fi
+
+    if ((missing == 0)); then
+        log_info "Banyan Labs CLI environment check passed."
+        return 0
+    fi
+
+    log_warn "Banyan Labs CLI environment check found missing requirements."
+    return 1
+}
+
 setup_run_install() {
     setup_require_macos
     setup_install_homebrew
     setup_install_xcode_tools
     setup_install_python
+    setup_install_bats
     setup_create_virtualenv
 
-    print_success "Banyan Labs CLI setup is complete."
+    if setup_is_dry_run; then
+        log_info "[DRY-RUN] Banyan Labs CLI setup check is complete."
+    else
+        log_info "Banyan Labs CLI setup is complete."
+    fi
 }
 
 setup_run_update_profile() {
@@ -274,7 +390,7 @@ setup_main() {
                 set_log_level DEBUG
                 export LOG_DEBUG=1
                 ;;
-            install|update-profile)
+            install|check|update-profile)
                 if [[ -n "$command" ]]; then
                     print_error "Only one setup command may be provided."
                     setup_usage >&2
@@ -302,6 +418,9 @@ setup_main() {
     case "$command" in
         install)
             setup_run_install
+            ;;
+        check)
+            setup_run_check
             ;;
         update-profile)
             setup_run_update_profile

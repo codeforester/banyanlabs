@@ -13,3 +13,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Temporary files
+test.log
+run.log
