@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 #
 # lib_git.sh: Git operations
 #
@@ -37,6 +38,8 @@ _git_only_path_dirty() {
 git_update_repo() {
     local git_repo="$1"
     local allowed_dirty_path="${2:-}"
+    local git_log
+
     if [[ -z "$git_repo" ]]; then
         log_error "No git repository path provided."
         log_info "Usage: update_repo /path/to/repo [allowed_dirty_path]"
@@ -57,7 +60,7 @@ git_update_repo() {
     # Check if it's a valid git repo
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         log_error "'$git_repo' is not a Git repository."
-        popd > /dev/null
+        popd >/dev/null || return 1
         return 1
     fi
 
@@ -66,7 +69,7 @@ git_update_repo() {
     current_branch=$(git rev-parse --abbrev-ref HEAD)
     if [[ "$current_branch" != "master" ]]; then
         log_debug "Current branch of '$git_repo' is '${current_branch}', not 'master'. Skipping update."
-        popd > /dev/null
+        popd >/dev/null || return 1
         return 1
     fi
 
@@ -82,31 +85,29 @@ git_update_repo() {
             log_debug "Repo '$git_repo' only has tracked changes in '$allowed_dirty_path'; attempting git pull."
         else
             log_debug "Repo '$git_repo' has local changes; skipping auto-update. Commit or stash to enable git pull."
-            popd > /dev/null
+            popd >/dev/null || return 1
             return 0
         fi
     fi
 
     # sometimes git pull throws warnings and we need a second git pull to address it
-    { git pull || git pull; } >"$git_log" 2>&1
-    if (($? != 0)); then
+    if ! { git pull || git pull; } >"$git_log" 2>&1; then
         log_error "git pull failed on repo '$git_repo'"
         [[ -s "$git_log" ]] && log_info_file "$git_log"
-        popd > /dev/null
+        popd >/dev/null || return 1
         return 1
     fi
 
     # it is safe to run submodule commands even if the repo has no submodules
-    { git submodule init && git submodule sync && git submodule update; } >/dev/null
-    if (($? != 0)); then
+    if ! { git submodule init && git submodule sync && git submodule update; } >/dev/null; then
         log_error "git submodule update failed on repo '$git_repo'"
         [[ -s "$git_log" ]] && log_info_file "$git_log"
-        popd > /dev/null
+        popd >/dev/null || return 1
         return 1
     fi
 
     log_debug "Git repo '$git_repo' updated to latest master"
-    popd > /dev/null
+    popd >/dev/null || return 1
     return 0
 }
 
@@ -128,15 +129,16 @@ git_update_repo() {
 #
 git_get_current_branch() {
     local target_dir="$1"
-    # Create a name reference to the variable name passed as the second argument.
-    local -n result_var="$2"
-    result_var=""
 
     # --- Argument Validation ---
-    if [[ -z "$target_dir" || -z "$2" ]]; then
+    if [[ -z "$target_dir" || -z "${2:-}" ]]; then
         log_error "Usage: get_git_branch <directory> <result_variable_name>"
         return 1
     fi
+
+    # Create a name reference to the variable name passed as the second argument.
+    local -n result_var="$2"
+    result_var=""
 
     if [[ ! -d "$target_dir" ]]; then
         return 1
@@ -153,7 +155,7 @@ git_get_current_branch() {
     # Check if we are inside a Git repository.
     if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
         # Not a Git repo, result is already an empty string.
-        popd > /dev/null
+        popd >/dev/null || return 1
         return 0
     fi
 
@@ -169,7 +171,7 @@ git_get_current_branch() {
         result_var="detached head"
     fi
 
-    popd > /dev/null
+    popd >/dev/null || return 1
     return 0
 }
 

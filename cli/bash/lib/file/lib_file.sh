@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 #
 # lib_file.sh - Bash library of generic file manipulation functions.
 #
@@ -87,7 +88,7 @@ update_file_section() {
 
     if grep -qF -- "$beginning_marker" "$target_file" && grep -qF -- "$end_marker" "$target_file"; then
         if [[ "$remove_section" == true ]]; then
-            awk -v START_M="$beginning_marker" -v END_M="$end_marker" '
+            if awk -v START_M="$beginning_marker" -v END_M="$end_marker" '
             BEGIN { in_section = 0 }
             $0 == START_M { in_section = 1; next }
             $0 == END_M   { in_section = 0; next }
@@ -96,11 +97,13 @@ update_file_section() {
                     print $0
                 }
             }
-            ' "$target_file" > "$temp_file"
+            ' "$target_file" > "$temp_file" && mv -f "$temp_file" "$target_file"; then
+                return 0
+            fi
         else
             # FIX: This awk script now correctly handles multiple sections. It only replaces the first one.
             export AWK_NEW_TEXT="$new_content_string"
-            awk -v START_M="$beginning_marker" -v END_M="$end_marker" '
+            if awk -v START_M="$beginning_marker" -v END_M="$end_marker" '
             BEGIN {
                 processed = 0 # 0 = not yet processed, 1 = processing, 2 = done
             }
@@ -118,19 +121,16 @@ update_file_section() {
             processed != 1 { # Print the line if we are not inside the section being replaced
                 print $0
             }
-            ' "$target_file" > "$temp_file"
-
+            ' "$target_file" > "$temp_file" && mv -f "$temp_file" "$target_file"; then
+                unset AWK_NEW_TEXT
+                return 0
+            fi
             unset AWK_NEW_TEXT
         fi
 
-        if [[ $? -eq 0 ]]; then
-            mv -f "$temp_file" "$target_file"
-            return 0
-        else
-            log_error "Failed to process sections in '$target_file'."
-            rm -f "$temp_file"
-            return 1
-        fi
+        log_error "Failed to process sections in '$target_file'."
+        rm -f "$temp_file"
+        return 1
     else
         # Markers not found in the file
         if [[ "$remove_section" == true ]]; then
@@ -143,20 +143,17 @@ update_file_section() {
                  echo "" >> "$temp_file"
             fi
 
-            {
+            if {
                 echo "$beginning_marker"
                 printf "%s" "$new_content_string"
                 echo "$end_marker"
-            } >> "$temp_file"
-
-            if [[ $? -eq 0 ]]; then
-                mv -f "$temp_file" "$target_file"
+            } >> "$temp_file" && mv -f "$temp_file" "$target_file"; then
                 return 0
-            else
-                log_error "Failed to add new section to '$target_file'."
-                rm -f "$temp_file"
-                return 1
             fi
+
+            log_error "Failed to add new section to '$target_file'."
+            rm -f "$temp_file"
+            return 1
         fi
     fi
 }

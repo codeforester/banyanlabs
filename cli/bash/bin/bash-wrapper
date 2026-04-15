@@ -149,7 +149,7 @@ main() {
     stdlib_path="$bash_root/lib/std/lib_std.sh"
     [[ -f "$stdlib_path" ]] || die "Required stdlib '$stdlib_path' was not found."
 
-    BANYAN_BASH_BOOTSTRAP_SOURCE="$command_script"
+    export BANYAN_BASH_BOOTSTRAP_SOURCE="$command_script"
     # Source the stdlib in the wrapper shell so command scripts inherit the shared helpers.
     source "$stdlib_path"
     unset BANYAN_BASH_BOOTSTRAP_SOURCE

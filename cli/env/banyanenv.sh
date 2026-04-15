@@ -111,6 +111,6 @@ banyanenv_main
 _banyanenv_rc=$?
 unset -f banyanenv_error banyanenv_is_sourced banyanenv_get_source_path banyanenv_prepend_path banyanenv_main
 if [[ $_banyanenv_rc -ne 0 ]]; then
-    return "$_banyanenv_rc" 2>/dev/null || exit "$_banyanenv_rc"
+    return "$_banyanenv_rc"
 fi
 unset _banyanenv_rc

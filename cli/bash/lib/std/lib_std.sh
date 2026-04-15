@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 #
 # lib_std.sh - Foundation library for Bash scripts
 #              Requires Bash version 4.0 or higher.
@@ -140,8 +141,7 @@ check_bash_version_and_upgrade() {
                 fi
 
                 echo "Updating Homebrew and installing Bash..." >&2
-                brew update && brew install bash
-                if [[ $? -ne 0 ]]; then
+                if ! { brew update && brew install bash; }; then
                     echo "Error: Failed to install Bash via Homebrew." >&2
                     exit 1
                 fi
@@ -151,7 +151,9 @@ check_bash_version_and_upgrade() {
                 local new_bash_path
                 new_bash_path="$(brew --prefix)/bin/bash"
                 if [[ -f "$new_bash_path" ]]; then
-                    echo "Relaunching script with the new Bash from: $new_bash_path ${__SCRIPT_ARGS__[@]}" >&2
+                    printf 'Relaunching script with the new Bash from: %s' "$new_bash_path" >&2
+                    printf ' %q' "${__SCRIPT_ARGS__[@]}" >&2
+                    printf '\n' >&2
                     exec "$new_bash_path" "$0" "${__SCRIPT_ARGS__[@]}"
                 else
                     echo "Error: Could not find the new Bash executable at '$new_bash_path'." >&2
@@ -242,13 +244,15 @@ import() {
         # Unless an absolute library path is given, make it relative to the script's location
         if [[ "$lib" != /* ]]; then
            [[ $__SCRIPT_DIR__ ]] || { printf '%s\n' "ERROR: __SCRIPT_DIR__ not set; import functionality needs it" >&2; exit 1; }
-           pushd "$__SCRIPT_DIR__" >/dev/null
+           pushd "$__SCRIPT_DIR__" >/dev/null || exit_if_error 1 "Failed to enter script directory '$__SCRIPT_DIR__'."
            pushed=1
         fi
         if [[ -f "$lib" ]]; then
             source "$lib"
             exit_if_error $? "Import of library '$lib' not successful."
-            ((pushed)) && popd >/dev/null
+            if ((pushed)); then
+                popd >/dev/null || exit_if_error 1 "Failed to leave script directory '$__SCRIPT_DIR__'."
+            fi
         else
             exit_if_error 1 "Library '$lib' does not exist"
         fi
@@ -455,9 +459,9 @@ _print_log() {
             *)           color="";; # No color for VERBOSE or others
         esac
 
-        local source_path="" source_line="" frame=1 caller_info caller_line caller_func caller_file
+        local source_path="" source_line="" frame=1 caller_info caller_line _caller_func caller_file
         while caller_info=$(caller "$frame"); do
-            read -r caller_line caller_func caller_file <<<"$caller_info"
+            read -r caller_line _caller_func caller_file <<<"$caller_info"
             if [[ -n "$caller_file" && "$caller_file" != "$__LIB_STD_PATH__" ]]; then
                 source_path="$caller_file"
                 source_line="$caller_line"
@@ -600,9 +604,14 @@ dump_trace() {
 #
 exit_if_error() {
     (($#)) || return
-    local num_re='^[0-9]+'
+    local num_re='^[0-9]+$'
     local rc=$1; shift
-    local message="${@:-No message specified}"
+    local message
+    if (($#)); then
+        message="$(__join_message__ "$@")"
+    else
+        message="No message specified"
+    fi
     if ! [[ $rc =~ $num_re ]]; then
         log_error "'$rc' is not a valid exit code; it needs to be a number greater than zero. Treating it as 1."
         rc=1
@@ -610,7 +619,7 @@ exit_if_error() {
     ((rc)) && {
         log_fatal "$message"
         dump_trace
-        exit $rc
+        exit "$rc"
     }
     return 0
 }
@@ -729,15 +738,16 @@ run() {
 # Usage: safe_mkdir [-p] dir1 dir2 ...
 #
 safe_mkdir() {
-    local p dir failed_dirs=()
+    local dir failed_dirs=() mkdir_args=()
     if [[ "${1-}" == "-p" ]]; then
         shift
-        p="-p"
+        mkdir_args=(-p)
     fi
     for dir; do
         [[ -d "$dir" ]] && continue
-        mkdir $p -- "$dir"
-        (($?)) && failed_dirs+=("$dir")
+        if ! mkdir "${mkdir_args[@]}" -- "$dir"; then
+            failed_dirs+=("$dir")
+        fi
     done
     ((${#failed_dirs[@]} > 0)) && exit_if_error 1 "Failed to create directories: ${failed_dirs[*]}"
     return 0
@@ -806,7 +816,7 @@ safe_truncate() {
         # The > redirection is the simplest way to truncate a file.
         # We redirect stderr to /dev/null to suppress system error messages,
         # as we will provide our own comprehensive error message.
-        if ! > "$file" 2>/dev/null; then
+        if ! : > "$file" 2>/dev/null; then
             failed_files+=("$file")
         fi
     done
@@ -1069,9 +1079,11 @@ safe_unalias() {
 get_my_source_dir() {
     local result_name="${1-}"
     [[ -n "$result_name" ]] || fatal_error "get_my_source_dir: No result variable name provided."
-    local -n result="$result_name"
+    local source_dir
     # Reference: https://stackoverflow.com/a/246128/6862601
-    result="$(cd "$(dirname "${BASH_SOURCE[1]}")" >/dev/null 2>&1 && pwd -P)"
+    source_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" >/dev/null 2>&1 && pwd -P)" ||
+        fatal_error "get_my_source_dir: Unable to resolve source directory."
+    printf -v "$result_name" '%s' "$source_dir"
 }
 
 #
