@@ -1,0 +1,194 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Python project
+        id: python_project
+        shell: bash
+        run: |
+          if git ls-files -z '*.py' | grep -qz . ||
+             [[ -f pyproject.toml || -f setup.py || -f setup.cfg || -f requirements.txt || -f requirements-dev.txt ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No Python project files found; skipping Python tests."
+          fi
+
+      - name: Set up Python
+        if: steps.python_project.outputs.present == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.python_project.outputs.present == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          if [[ -f requirements-dev.txt ]]; then
+            python -m pip install -r requirements-dev.txt
+          elif [[ -f requirements.txt ]]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pytest
+
+      - name: Run Python tests
+        if: steps.python_project.outputs.present == 'true'
+        run: |
+          python -m pytest
+
+  go:
+    name: Go tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Go project
+        id: go_project
+        shell: bash
+        run: |
+          if [[ -f go.mod ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No go.mod found; skipping Go tests."
+          fi
+
+      - name: Set up Go
+        if: steps.go_project.outputs.present == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Vet
+        if: steps.go_project.outputs.present == 'true'
+        run: |
+          go vet ./...
+
+      - name: Test
+        if: steps.go_project.outputs.present == 'true'
+        run: |
+          go test ./...
+
+      - name: Build
+        if: steps.go_project.outputs.present == 'true'
+        run: |
+          go build ./...
+
+  java:
+    name: Java tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Java project
+        id: java_project
+        shell: bash
+        run: |
+          if [[ -f pom.xml || -f build.gradle || -f build.gradle.kts || -f settings.gradle || -f settings.gradle.kts ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No Java build file found; skipping Java tests."
+          fi
+
+      - name: Set up Java
+        if: steps.java_project.outputs.present == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Run Maven tests
+        if: steps.java_project.outputs.present == 'true' && hashFiles('pom.xml') != ''
+        run: |
+          mvn test
+
+      - name: Run Gradle tests
+        if: steps.java_project.outputs.present == 'true' && hashFiles('build.gradle', 'build.gradle.kts') != ''
+        run: |
+          if [[ -x ./gradlew ]]; then
+            ./gradlew test
+          else
+            gradle test
+          fi
+
+  shell:
+    name: Shell checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shell tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck
+
+      - name: Run ShellCheck
+        shell: bash
+        run: |
+          mapfile -d '' shell_files < <(
+            git ls-files -z \
+              '*.sh' \
+              'bin/*'
+          )
+
+          if ((${#shell_files[@]} == 0)); then
+            echo "No shell files found; skipping ShellCheck."
+            exit 0
+          fi
+
+          shellcheck --severity=error "${shell_files[@]}"
+
+      - name: Run BATS tests
+        shell: bash
+        run: |
+          mapfile -d '' bats_files < <(git ls-files -z '*.bats')
+
+          if ((${#bats_files[@]} == 0)); then
+            echo "No BATS tests found; skipping BATS."
+            exit 0
+          fi
+
+          bats "${bats_files[@]}"
+
+  security:
+    name: Security scanners
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install scanners
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install bandit
+
+      - name: Run Bandit
+        shell: bash
+        run: |
+          mapfile -d '' python_files < <(git ls-files -z '*.py')
+
+          if ((${#python_files[@]} == 0)); then
+            echo "No Python files found; skipping Bandit."
+            exit 0
+          fi
+
+          bandit -q -r . -x '*/tests/*' --severity-level medium

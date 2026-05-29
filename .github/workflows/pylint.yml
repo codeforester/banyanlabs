@@ -1,0 +1,52 @@
+name: Pylint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Python files
+        id: python_files
+        shell: bash
+        run: |
+          if git ls-files -z '*.py' | grep -qz .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No Python files found; skipping Pylint."
+          fi
+
+      - name: Set up Python ${{ matrix.python-version }}
+        if: steps.python_files.outputs.present == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.python_files.outputs.present == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          if [[ -f requirements-dev.txt ]]; then
+            python -m pip install -r requirements-dev.txt
+          elif [[ -f requirements.txt ]]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pylint
+
+      - name: Run Pylint
+        if: steps.python_files.outputs.present == 'true'
+        run: |
+          if [[ -f .pylintrc ]]; then
+            git ls-files -z '*.py' | xargs -0 pylint --rcfile=.pylintrc
+          else
+            git ls-files -z '*.py' | xargs -0 pylint
+          fi
