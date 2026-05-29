@@ -48,3 +48,15 @@ This repo is in transition.
 The first migration pass moved the shared CLI/bootstrap artifacts out of
 `banyanlabs` and into the sibling `base` repo. Additional project-specific
 structure will be rebuilt here on top of that new workspace model.
+
+## Development Workflow
+
+Banyan Labs follows Base's issue-first GitHub workflow:
+
+- track work in GitHub Issues before implementation starts
+- prefer `basectl gh` for supported GitHub issue and pull request tasks
+- use one worktree per pull request
+- keep each PR scoped to one issue and link it with `Fixes #<issue>`
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/github-workflow.md](docs/github-workflow.md) for the full workflow.
