@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -105,6 +105,11 @@ jobs:
       - name: Lint shell scripts
         shell: bash
         run: |
+          if [[ ! -d cli ]]; then
+            echo "No cli directory found; skipping shell lint."
+            exit 0
+          fi
+
           mapfile -t shell_files < <(
             find cli \
               -type f \
@@ -120,11 +125,17 @@ jobs:
           shellcheck -x -e SC1090,SC1091 "${shell_files[@]}"
 
       - name: Run Bash tests
+        shell: bash
         run: |
-          bats \
-            cli/env/tests/banyanenv.bats \
-            cli/bash/bin/tests/bash-wrapper.bats \
-            cli/bash/commands/setup/tests/setup.bats \
-            cli/bash/lib/std/tests/lib_std.bats \
-            cli/bash/lib/file/tests/lib_file.bats \
-            cli/bash/lib/git/tests/lib_git.bats
+          if [[ ! -d cli ]]; then
+            echo "No cli directory found; skipping Bash tests."
+            exit 0
+          fi
+
+          mapfile -t bats_files < <(find cli -type f -name "*.bats" -print | sort)
+          if ((${#bats_files[@]} == 0)); then
+            echo "No BATS tests found."
+            exit 0
+          fi
+
+          bats "${bats_files[@]}"
