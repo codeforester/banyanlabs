@@ -1,19 +1,39 @@
-# macOS
+# Ignore macOS DS_Store files
 .DS_Store
 
-# Editors
+# Ignore editor state
 .vscode/
+.idea/
 
-# Python
+# Ignore Python interpreter caches
 __pycache__/
 *.py[cod]
-.venv/
+
+# Ignore Python test caches and coverage output
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
 
-# Temporary files
-test.log
-run.log
+# Ignore virtual environments
+.venv/
+venv/
+env/
+
+# Ignore build artifacts
+build/
+dist/
+*.egg-info/
+
+# Ignore Go and Java build output
+bin/
+target/
+.gradle/
+
+# Ignore logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Ignore user-local AI assistant context
+AI_CONTEXT.md
