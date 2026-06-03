@@ -10,3 +10,4 @@ and versions are tracked in the repo-root `VERSION` file.
 ### Added
 
 - Initialized the repository with the Base-managed repo baseline.
+- Documented the Banyan Labs platform lab vision and first service direction.

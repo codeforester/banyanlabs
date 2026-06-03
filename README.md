@@ -1,7 +1,22 @@
 # Banyan Labs
 
-Banyan Labs is now intended to be a project repo that lives inside a shared
-workspace managed by the sibling `base` repo.
+Banyan Labs is a realistic infrastructure and platform engineering lab.
+
+The purpose is to build deep DevOps, SRE, and platform engineering knowledge by
+assembling real services and infrastructure tools into a meaningful environment.
+Certifications can introduce AWS, GCP, Azure, Kubernetes, Terraform, CI/CD,
+monitoring, and distributed systems, but Banyan Labs is about learning those
+ingredients by building with them.
+
+The long-term goal is to grow toward the complexity of a medium-sized
+engineering organization: multiple services, multiple languages, local and
+remote environments, CI/CD, infrastructure as code, observability, Kubernetes,
+and eventually multi-cloud patterns based on real open source tools.
+
+The first concrete service is a Go URL shortener with local SQLite storage,
+authentication, user management, tests, and a minimal HTML UI from day one.
+
+See [Banyan Labs Vision](docs/banyanlabs-vision.md) for the broader direction.
 
 ## Relationship to Base
 
@@ -31,8 +46,7 @@ In that model:
 
 ## What This Repo Will Focus On
 
-As the split continues, Banyan Labs should increasingly focus on project-level
-concerns such as:
+Banyan Labs focuses on project-level and product-level concerns such as:
 
 - project source code
 - infrastructure definitions
@@ -43,11 +57,11 @@ concerns such as:
 
 ## Status
 
-This repo is in transition.
+This repo is being rebuilt around a local-first platform lab.
 
-The first migration pass moved the shared CLI/bootstrap artifacts out of
-`banyanlabs` and into the sibling `base` repo. Additional project-specific
-structure will be rebuilt here on top of that new workspace model.
+The shared CLI/bootstrap artifacts moved into the sibling `base` repo. Banyan
+Labs now owns the services, docs, tests, and project-specific infrastructure
+that will grow on top of that workspace model.
 
 ## Development Workflow
 
