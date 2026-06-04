@@ -10,7 +10,7 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 
 - Learn Go service development end-to-end
 - Implement a real three-tier architecture (frontend, business logic, storage)
-- Practice industry-standard patterns: REST APIs, JWT authentication, hash-based ID generation
+- Practice industry-standard patterns: server-rendered HTML, cookie-backed sessions, hash-based ID generation
 - Keep the design professional and production-quality, not a toy project
 
 ---
@@ -21,7 +21,7 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 |---|---|
 | Language | Go |
 | Web server | Go standard library `net/http` |
-| Authentication | JWT (JSON Web Tokens) |
+| Authentication | Cookie-backed server sessions for the HTML UI; JWT deferred for API clients |
 | Storage | SQLite |
 | Short code generation | SHA-256 hash + Base62 encoding |
 
@@ -37,7 +37,7 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 
 ### Tier 2 — Business Logic (Middle Tier)
 - Handles all API endpoints
-- Validates inputs (URL format, short code format, JWT tokens)
+- Validates inputs (URL format, short code format, sessions)
 - Generates system short codes using SHA-256 + Base62 encoding
 - Enforces deduplication logic
 - Manages user authentication and authorization
@@ -48,6 +48,35 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 - Stores user accounts and URL mappings
 - Enforces uniqueness constraints at the database level
 - Handles all persistence concerns
+
+---
+
+## Implementation Layers
+
+The service should keep request handling, application behavior, and storage
+separate.
+
+```text
+net/http handler
+  -> parse request, session, and form data
+  -> call application service/use case
+  -> application layer validates and coordinates domain logic
+  -> storage layer reads and writes SQLite
+  -> application returns typed result or error
+  -> handler maps result/error to HTML, redirect, or HTTP status
+```
+
+Layering rules:
+
+- HTTP handlers must not contain SQL.
+- Storage code must not render HTML or know about cookies.
+- Application services own use cases such as signup, login, create URL,
+  resolve code, and list user URLs.
+- Domain helpers own URL normalization, short-code validation, and code
+  generation.
+- SQLite migrations define schema changes and run during local startup.
+- Structured request logging belongs in HTTP middleware, with additional
+  app/storage logs where useful.
 
 ---
 
@@ -64,17 +93,36 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 | created_at | DATETIME | NOT NULL | Set on insert, never modified |
 | modified_at | DATETIME | NOT NULL | Set on insert, updated on row change |
 
+### Table: sessions
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| id | INTEGER | PRIMARY KEY, AUTOINCREMENT | Internal session ID |
+| user_id | INTEGER | NOT NULL, FOREIGN KEY → users.id | Session owner |
+| token_hash | TEXT | NOT NULL, UNIQUE | Hash of opaque session token |
+| created_at | DATETIME | NOT NULL | Set on insert |
+| expires_at | DATETIME | NOT NULL | Session expiration |
+| last_seen_at | DATETIME | NULLABLE | Updated as the session is used |
+
 ### Table: shortened_urls
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | id | INTEGER | PRIMARY KEY, AUTOINCREMENT | Internal record ID |
 | user_id | INTEGER | NOT NULL, FOREIGN KEY → users.id | Owner of this shortened URL |
-| long_url | TEXT | NOT NULL | The original full URL |
-| system_short_code | TEXT | NOT NULL, UNIQUE | Always generated, hash-based, 8 chars |
-| custom_short_code | TEXT | NULLABLE, UNIQUE | Optional user-defined code, 3–20 chars |
+| original_url | TEXT | NOT NULL | The original full URL used for display and redirect |
+| normalized_url | TEXT | NOT NULL | Canonicalized URL used for per-user deduplication |
 | created_at | DATETIME | NOT NULL | Set on insert, never modified |
 | modified_at | DATETIME | NOT NULL | Set on insert, updated on row change |
+
+### Table: short_codes
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| code | TEXT | PRIMARY KEY | Globally unique public short code |
+| shortened_url_id | INTEGER | NOT NULL, FOREIGN KEY → shortened_urls.id | Target URL record |
+| kind | TEXT | NOT NULL, CHECK (`system` or `custom`) | Code type |
+| created_at | DATETIME | NOT NULL | Set on insert |
 
 ### Timestamp Behavior
 - `created_at` is set automatically when a row is inserted and never changed again
@@ -83,10 +131,11 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 ### Indexes
 - Unique index on `users.username`
 - Unique index on `users.email`
-- Unique index on `shortened_urls.system_short_code`
-- Unique index on `shortened_urls.custom_short_code` (nullable — SQLite treats NULLs as distinct, so multiple NULLs do not violate uniqueness)
-- Index on `shortened_urls.long_url` for fast deduplication lookups
+- Unique index on `sessions.token_hash`
+- Unique constraint on `shortened_urls(user_id, normalized_url)` for per-user deduplication
 - Index on `shortened_urls.user_id` for fast user URL listing
+- Primary key on `short_codes.code` for global public-code uniqueness
+- Index on `short_codes.shortened_url_id` for loading codes for a URL record
 
 ---
 
@@ -98,16 +147,16 @@ A multi-user URL shortening service built in Go as a learning project within Ban
 - **Length:** 8 characters
 - **Character set:** Base62 — `[a-zA-Z0-9]` (62 possible characters per position)
 - **Collision space:** 62^8 ≈ 218 trillion possible codes
-- **Collision handling:** SQLite unique constraint on `system_short_code`. If insert fails due to collision, take the next N bytes of the hash and retry. Successive collisions are extremely rare.
-- **Deterministic:** Same long URL always produces the same system short code
+- **Collision handling:** SQLite unique constraint on `short_codes.code`. If the first candidate collides, take the next N bytes of the hash and retry. Successive collisions are extremely rare.
+- **Deterministic candidate:** Same normalized URL starts from the same first candidate, but collision handling can choose a later candidate when the global code namespace is already occupied.
 
 ### Custom Short Codes
 
 - **Length:** 3 to 20 characters
 - **Character set:** Alphanumeric plus dash and underscore — `[a-zA-Z0-9_-]`
-- **Uniqueness:** Globally unique across all users
+- **Uniqueness:** Globally unique across all system and custom public codes
 - **Optional:** User may provide a custom code at creation time or add/change it later via the update endpoint
-- **Stored separately:** Custom codes are stored in their own column alongside the system-generated code
+- **Stored separately:** Custom codes are stored as `short_codes` rows with `kind = custom`
 
 ### Why Both Codes Are Stored
 
@@ -115,15 +164,16 @@ When user A shortens URL X with a custom code "mylink", and user B later shorten
 - System-generated codes are always available as a neutral fallback
 - Custom codes remain associated with the user who created them
 - Deduplication returns the appropriate code based on context
+- Public redirects can resolve a globally unique code without user context
 
 ---
 
-## API Endpoints
+## HTTP Endpoints
 
 ### Authentication Endpoints
 
 #### POST /auth/signup
-Create a new user account.
+Create a new user account and start a browser session.
 
 **Request body:**
 ```json
@@ -138,15 +188,16 @@ Create a new user account.
 ```json
 {
   "user_id": 1,
-  "username": "johndoe",
-  "token": "<JWT token>"
+  "username": "johndoe"
 }
 ```
+
+The response sets an HTTP-only session cookie.
 
 ---
 
 #### POST /auth/login
-Authenticate an existing user and receive a JWT token.
+Authenticate an existing user and start a browser session.
 
 **Request body:**
 ```json
@@ -160,16 +211,25 @@ Authenticate an existing user and receive a JWT token.
 ```json
 {
   "user_id": 1,
-  "username": "johndoe",
-  "token": "<JWT token>"
+  "username": "johndoe"
 }
 ```
+
+The response sets an HTTP-only session cookie.
+
+---
+
+#### POST /auth/logout
+Delete the current session and clear the browser session cookie.
+
+**Response (204 No Content)**
 
 ---
 
 ### URL Management Endpoints
 
-All URL management endpoints require authentication via the `Authorization: Bearer <token>` header.
+All browser URL management endpoints require a valid session cookie. JWT-based
+API authentication is deferred to a later API-client phase.
 
 #### POST /shorten
 Create a new shortened URL.
@@ -184,12 +244,13 @@ Create a new shortened URL.
 
 **Business logic:**
 1. Validate that `long_url` is a valid URL
-2. If `custom_short_code` is provided, validate format (3–20 chars, `[a-zA-Z0-9_-]`) and check global uniqueness
-3. Query the database to check if `long_url` already exists
-4. If it exists, return the existing system short code (not the custom code of another user)
-5. If it does not exist, generate a system short code using SHA-256 + Base62
-6. Attempt to insert the new row; handle unique constraint violations with retry
-7. Return both codes
+2. Normalize `long_url` into `normalized_url`
+3. If `custom_short_code` is provided, validate format (3–20 chars, `[a-zA-Z0-9_-]`) and check global public-code uniqueness
+4. Query the database for the authenticated user's existing `normalized_url`
+5. If this user already has the URL, return that user's existing codes
+6. If it does not exist, create a `shortened_urls` row and generate a system short code using SHA-256 + Base62
+7. Attempt to insert `short_codes` rows; handle global code uniqueness conflicts with retry for the system code
+8. Return both codes
 
 **Response (201 Created):**
 ```json
@@ -214,7 +275,7 @@ Update the custom short code of an existing shortened URL. Only the owner of the
 ```
 
 **Business logic:**
-1. Validate JWT and extract user ID
+1. Validate session and extract user ID
 2. Look up the shortened URL by `:shortCode` (system or custom)
 3. Verify the requesting user owns this record
 4. Validate the new custom short code format
@@ -237,7 +298,7 @@ Update the custom short code of an existing shortened URL. Only the owner of the
 Delete a shortened URL. Only the owner can delete it.
 
 **Business logic:**
-1. Validate JWT and extract user ID
+1. Validate session and extract user ID
 2. Look up the record by `:shortCode`
 3. Verify ownership
 4. Delete the record
@@ -270,7 +331,7 @@ Retrieve all shortened URLs belonging to the authenticated user.
 Redirect a short code to its original long URL. No authentication required.
 
 **Business logic:**
-1. Look up `:shortCode` in both `system_short_code` and `custom_short_code` columns
+1. Look up `:shortCode` in the global `short_codes` table
 2. If found, return HTTP 301/302 redirect to the original long URL
 3. If not found, return 404
 
@@ -283,22 +344,21 @@ Location: https://www.example.com/some/very/long/path
 
 ## Authentication Design
 
-### JWT Token Flow
+### Cookie Session Flow
 
-1. User signs up or logs in via `/auth/signup` or `/auth/login`
-2. Server validates credentials, generates a signed JWT token containing:
-   - `user_id`
-   - `username`
-   - `issued_at` timestamp
-   - `expires_at` timestamp (e.g. 24 hours)
-3. Token is signed with a server-side secret key
-4. Client includes the token in all authenticated requests: `Authorization: Bearer <token>`
-5. Server validates the token signature and expiration on every authenticated request
-6. If valid, extracts `user_id` and proceeds. If invalid or expired, returns 401 Unauthorized
+1. User signs up or logs in through the HTML UI
+2. Server validates credentials and generates an opaque random session token
+3. Server stores only a hash of the session token in SQLite
+4. Server returns the raw session token in an HTTP-only cookie
+5. Browser includes the cookie on authenticated requests
+6. Server hashes the cookie token, finds the session row, verifies expiration,
+   and extracts `user_id`
+7. Logout deletes the session row and clears the cookie
 
 ### Limitations (Current Phase)
-- Token revocation is not supported in this initial implementation — tokens remain valid until expiration
-- Logout functionality will require a Redis-based token blacklist, deferred to a future phase
+- Sessions are stored in SQLite, so the first implementation is single-instance
+- JWT authentication for non-browser API clients is deferred to a future phase
+- Distributed session storage can be revisited when Banyan Labs adds multi-instance deployment
 
 ---
 
@@ -308,19 +368,20 @@ Location: https://www.example.com/some/very/long/path
 
 ```
 1. Receive POST /shorten with long_url and optional custom_short_code
-2. Validate JWT token → extract user_id
+2. Validate session cookie → extract user_id
 3. Validate long_url format
-4. If custom_short_code provided:
+4. Normalize long_url
+5. If custom_short_code provided:
    a. Validate format (3–20 chars, [a-zA-Z0-9_-])
-   b. Check global uniqueness in database
+   b. Check global public-code uniqueness in database
    c. Return error if taken
-5. Query database: SELECT * FROM shortened_urls WHERE long_url = ?
-6. If found → return existing system_short_code (deduplication)
-7. If not found:
+6. Query database: SELECT * FROM shortened_urls WHERE user_id = ? AND normalized_url = ?
+7. If found → return this user's existing codes
+8. If not found:
    a. Compute SHA-256 hash of long_url
    b. Encode first 6 bytes of hash to Base62 → 8-char system_short_code
-   c. Attempt INSERT into shortened_urls
-   d. If unique constraint violation on system_short_code → take next 6 bytes, retry
+   c. Attempt INSERT into shortened_urls and short_codes
+   d. If unique constraint violation on short_codes.code → take next 6 bytes, retry
    e. On success → return new record
 ```
 
@@ -328,8 +389,7 @@ Location: https://www.example.com/some/very/long/path
 
 ```
 1. Receive GET /:shortCode
-2. Query: SELECT long_url FROM shortened_urls
-         WHERE system_short_code = ? OR custom_short_code = ?
+2. Query short_codes joined to shortened_urls by code
 3. If found → HTTP 302 redirect to long_url
 4. If not found → HTTP 404
 ```
@@ -340,8 +400,8 @@ Location: https://www.example.com/some/very/long/path
 
 | Scenario | HTTP Status | Response |
 |---|---|---|
-| Invalid JWT token | 401 | Unauthorized |
-| Expired JWT token | 401 | Token expired |
+| Missing or invalid session | 401 | Unauthorized |
+| Expired session | 401 | Session expired |
 | User does not own resource | 403 | Forbidden |
 | Short code not found | 404 | Not found |
 | Custom code already taken | 409 | Conflict |
@@ -353,12 +413,13 @@ Location: https://www.example.com/some/very/long/path
 
 ## Future Considerations
 
-- **Logout and token revocation:** Add Redis as a token blacklist store
+- **JWT authentication:** Add JWT support for non-browser API clients
+- **Distributed sessions:** Add Redis or another shared session store when multi-instance deployment requires it
 - **Click analytics:** Track redirect counts per short code
 - **URL expiration:** Add optional TTL on shortened URLs
 - **Rate limiting:** Prevent abuse of the shorten endpoint
 - **PostgreSQL migration:** Replace SQLite when scaling beyond single instance
-- **Multi-instance deployment:** Requires shared database (PostgreSQL) and stateless JWT already supports this
+- **Multi-instance deployment:** Requires shared database (PostgreSQL) and shared session storage or stateless API credentials
 - **HTTPS:** Required before any production deployment
 
 ---

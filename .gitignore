@@ -34,6 +34,7 @@ target/
 logs/
 tmp/
 temp/
+var/
 
 # Ignore user-local AI assistant context
 AI_CONTEXT.md
