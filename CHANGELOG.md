@@ -12,3 +12,4 @@ and versions are tracked in the repo-root `VERSION` file.
 - Initialized the repository with the Base-managed repo baseline.
 - Documented the Banyan Labs platform lab vision and first service direction.
 - Linked Banyan Labs documentation references to the Base README.
+- Added the Banyan Labs platform roadmap with phased completion criteria.

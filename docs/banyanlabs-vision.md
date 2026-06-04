@@ -72,6 +72,9 @@ Later phases can add:
 - Prometheus, Grafana, OpenTelemetry, and log aggregation
 - Crossplane or similar tools for multi-cloud control-plane patterns
 
+The staged sequence is tracked in the
+[Platform Roadmap](platform-roadmap.md).
+
 ## Conceptual Architecture
 
 ```mermaid
