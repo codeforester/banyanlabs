@@ -1,8 +1,9 @@
 # Contributing to Banyan Labs
 
-Banyan Labs uses the same issue-first GitHub workflow as the sibling Base
-repository. Keep work visible in GitHub Issues, keep pull requests small, and
-use Base's `basectl gh` helper when it supports the operation.
+Banyan Labs uses the same issue-first GitHub workflow as the sibling
+[Base](https://github.com/codeforester/base#readme) repository. Keep work
+visible in GitHub Issues, keep pull requests small, and use Base's `basectl gh`
+helper when it supports the operation.
 
 ## Workflow
 
