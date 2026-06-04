@@ -49,6 +49,9 @@ database migrations, CI/CD, and environment promotion.
 
 The first phase is intentionally local:
 
+Base refers to the sibling [Base](https://github.com/codeforester/base#readme)
+repository that owns shared workspace tooling.
+
 ```text
 developer laptop
   -> Base-managed workspace

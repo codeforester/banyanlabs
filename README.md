@@ -22,7 +22,8 @@ See [Banyan Labs Vision](docs/banyanlabs-vision.md) for the broader direction.
 
 The shared developer bootstrap layer no longer lives here.
 
-That foundational layer now belongs in `base`, including:
+That foundational layer now belongs in
+[`base`](https://github.com/codeforester/base#readme), including:
 
 - shell environment bootstrap
 - shared Bash wrapper and command conventions
