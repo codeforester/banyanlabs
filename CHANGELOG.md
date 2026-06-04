@@ -14,3 +14,4 @@ and versions are tracked in the repo-root `VERSION` file.
 - Linked Banyan Labs documentation references to the Base README.
 - Added the Banyan Labs platform roadmap with phased completion criteria.
 - Added the initial Go URL shortener service skeleton.
+- Added mise-managed Go runtime setup for Banyan Labs.

@@ -1,15 +1,24 @@
+schema_version: 1
+
 project:
   # Project name used by Base for setup logs and the project virtual
   # environment at ~/.base.d/<project>/.venv.
   name: banyanlabs
 
 # Banyan Labs is expected to grow into a multi-service repo with Go, Java, and
-# Python components. Keep language runtime managers in Base or in a future
-# project Brewfile/mise config once those contracts are defined for this repo.
-#
-# Current Base artifact support covers project Python packages here. Go and
-# Java runtime/tool declarations should be added after Base gains registry
-# entries or Banyan Labs adds a Brewfile/mise contract.
+# Python components. Base delegates ordinary workstation tools to Homebrew and
+# language/runtime versions to mise.
+
+brewfile: Brewfile
+
+mise: .mise.toml
+
+test:
+  mise: test
+
+commands:
+  build: mise run build
+  dev: mise run dev
 
 artifacts:
   # Python tooling for Banyan Labs automation, tests, and service support.
@@ -23,8 +32,4 @@ artifacts:
 
   - type: python-package
     name: requests
-    version: latest
-
-  - type: python-package
-    name: PyYAML
     version: latest

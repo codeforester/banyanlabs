@@ -6,6 +6,14 @@ endpoint.
 
 ## Run Locally
 
+From the repo root after `basectl setup banyanlabs`:
+
+```bash
+basectl run banyanlabs dev
+```
+
+Or directly from this service directory:
+
 ```bash
 go run ./cmd/url-shortener
 ```
@@ -25,6 +33,14 @@ BANYAN_LOG_LEVEL
 ```
 
 ## Validate
+
+From the repo root:
+
+```bash
+basectl test banyanlabs
+```
+
+Or directly from this service directory:
 
 ```bash
 CGO_ENABLED=0 go test ./...
