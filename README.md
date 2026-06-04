@@ -17,6 +17,9 @@ The first concrete service is a Go URL shortener with local SQLite storage,
 authentication, user management, tests, and a minimal HTML UI from day one.
 
 See [Banyan Labs Vision](docs/banyanlabs-vision.md) for the broader direction.
+See [Platform Roadmap](docs/platform-roadmap.md) for the phased path from the
+local service to observability, delivery, Kubernetes, infrastructure as code,
+and cloud environments.
 
 ## Relationship to Base
 
