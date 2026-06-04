@@ -26,6 +26,7 @@ logs/
 generated/
 tmp/
 temp/
+var/
 
 # Git
 .git/

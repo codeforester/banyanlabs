@@ -49,6 +49,8 @@ jobs:
   go:
     name: Go tests
     runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
 
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +59,7 @@ jobs:
         id: go_project
         shell: bash
         run: |
-          if [[ -f go.mod ]]; then
+          if find . -name go.mod -not -path './.git/*' -print -quit | grep -q .; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
@@ -72,18 +74,33 @@ jobs:
 
       - name: Vet
         if: steps.go_project.outputs.present == 'true'
+        shell: bash
         run: |
-          go vet ./...
+          while IFS= read -r module; do
+            module_dir="$(dirname "$module")"
+            echo "Running go vet in $module_dir"
+            (cd "$module_dir" && go vet ./...)
+          done < <(find . -name go.mod -not -path './.git/*' -print | sort)
 
       - name: Test
         if: steps.go_project.outputs.present == 'true'
+        shell: bash
         run: |
-          go test ./...
+          while IFS= read -r module; do
+            module_dir="$(dirname "$module")"
+            echo "Running go test in $module_dir"
+            (cd "$module_dir" && go test ./...)
+          done < <(find . -name go.mod -not -path './.git/*' -print | sort)
 
       - name: Build
         if: steps.go_project.outputs.present == 'true'
+        shell: bash
         run: |
-          go build ./...
+          while IFS= read -r module; do
+            module_dir="$(dirname "$module")"
+            echo "Running go build in $module_dir"
+            (cd "$module_dir" && go build ./...)
+          done < <(find . -name go.mod -not -path './.git/*' -print | sort)
 
   java:
     name: Java tests
