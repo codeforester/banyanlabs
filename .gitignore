@@ -4,6 +4,7 @@
 # Ignore editor state
 .vscode/
 .idea/
+.mise.local.toml
 
 # Ignore Python interpreter caches
 __pycache__/

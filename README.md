@@ -21,6 +21,31 @@ See [Platform Roadmap](docs/platform-roadmap.md) for the phased path from the
 local service to observability, delivery, Kubernetes, infrastructure as code,
 and cloud environments.
 
+## Local Setup
+
+Banyan Labs uses Base for workspace orchestration and `mise` for language
+runtime versions.
+
+From the repository root:
+
+```bash
+basectl setup banyanlabs
+```
+
+That setup path uses:
+
+- `Brewfile` to install `mise`
+- `.mise.toml` to install the Go runtime
+- `base_manifest.yaml` to connect those tools to Base
+
+After setup:
+
+```bash
+basectl test banyanlabs
+basectl run banyanlabs build
+basectl run banyanlabs dev
+```
+
 ## Relationship to Base
 
 The shared developer bootstrap layer no longer lives here.
