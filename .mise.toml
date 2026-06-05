@@ -6,7 +6,7 @@ CGO_ENABLED = "0"
 
 [tasks.test]
 description = "Run Banyan Labs validation and service tests"
-run = "tests/validate.sh && cd services/url-shortener && go test ./..."
+run = "tests/validate.sh && cd services/url-shortener && go test ./... && cd ../.. && tests/api/run.sh"
 
 [tasks.build]
 description = "Build the URL shortener service"
@@ -15,3 +15,7 @@ run = "cd services/url-shortener && go build ./..."
 [tasks.dev]
 description = "Run the URL shortener service locally"
 run = "cd services/url-shortener && go run ./cmd/url-shortener"
+
+[tasks.api-test]
+description = "Run URL shortener black-box API smoke tests"
+run = "tests/api/run.sh"

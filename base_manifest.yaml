@@ -17,6 +17,7 @@ test:
   mise: test
 
 commands:
+  api-test: mise run api-test
   build: mise run build
   dev: mise run dev
 

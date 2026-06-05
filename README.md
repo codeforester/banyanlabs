@@ -34,7 +34,7 @@ basectl setup banyanlabs
 
 That setup path uses:
 
-- `Brewfile` to install `mise`
+- `Brewfile` to install `mise` and API test tooling
 - `.mise.toml` to install the Go runtime
 - `base_manifest.yaml` to connect those tools to Base
 
@@ -42,9 +42,15 @@ After setup:
 
 ```bash
 basectl test banyanlabs
+basectl run banyanlabs api-test
 basectl run banyanlabs build
 basectl run banyanlabs dev
 ```
+
+API contracts and black-box smoke tests live with the repo:
+
+- `services/url-shortener/openapi.yaml`
+- `tests/api/url-shortener/*.hurl`
 
 ## Relationship to Base
 
