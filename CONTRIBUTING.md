@@ -5,6 +5,12 @@ Banyan Labs uses the same issue-first GitHub workflow as the sibling
 visible in GitHub Issues, keep pull requests small, and use Base's `basectl gh`
 helper when it supports the operation.
 
+## AI-Assisted Development
+
+Coding agents should follow [AGENTS.md](AGENTS.md). It points to the same
+workflow in this guide while capturing Banyan Labs-specific instructions for
+Base tooling, validation, and design-only sessions.
+
 ## Workflow
 
 1. Create or choose a GitHub issue before starting implementation work.
