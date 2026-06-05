@@ -38,6 +38,7 @@ From the repo root:
 
 ```bash
 basectl test banyanlabs
+basectl run banyanlabs api-test
 ```
 
 Or directly from this service directory:
@@ -53,3 +54,9 @@ CGO_ENABLED=0 go build ./...
 ```bash
 curl http://127.0.0.1:8080/healthz
 ```
+
+## API Contract
+
+The OpenAPI contract for this service is tracked at
+[`openapi.yaml`](openapi.yaml). Black-box API smoke tests are tracked under
+[`../../tests/api/url-shortener`](../../tests/api/url-shortener).

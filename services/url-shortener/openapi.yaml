@@ -1,0 +1,69 @@
+openapi: 3.1.0
+info:
+  title: Banyan Labs URL Shortener API
+  version: 0.0.1
+  description: API contract for the Banyan Labs URL shortener service.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Default local development server
+tags:
+  - name: Health
+    description: Service health and readiness endpoints
+paths:
+  /healthz:
+    get:
+      tags:
+        - Health
+      summary: Get service health
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service health status.
+          headers:
+            X-Request-ID:
+              description: Request identifier generated or propagated by the service.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                ok:
+                  value:
+                    service: url-shortener
+                    status: ok
+                    uptime: "1.234s"
+    head:
+      tags:
+        - Health
+      summary: Check service health headers
+      operationId: headHealth
+      responses:
+        "200":
+          description: Service is accepting health requests.
+          headers:
+            X-Request-ID:
+              description: Request identifier generated or propagated by the service.
+              schema:
+                type: string
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - service
+        - status
+        - uptime
+      properties:
+        service:
+          type: string
+          example: url-shortener
+        status:
+          type: string
+          enum:
+            - ok
+        uptime:
+          type: string
+          description: Process uptime formatted by the Go runtime duration formatter.
+          example: "1.234s"
