@@ -5,6 +5,9 @@ required_files=(
   VERSION
   CHANGELOG.md
   CONTRIBUTING.md
+  AGENTS.md
+  skills.md
+  .github/pull_request_template.md
   LICENSE
   base_manifest.yaml
 )
