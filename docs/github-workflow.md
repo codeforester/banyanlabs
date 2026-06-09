@@ -103,6 +103,28 @@ git worktree add -b documentation/14-20260529-document-local-setup \
   ~/work/banyanlabs-worktrees/documentation-14-local-setup origin/main
 ```
 
+Before creating a worktree, check whether the current checkout is already a
+linked worktree for the intended issue:
+
+```bash
+git rev-parse --git-dir
+git rev-parse --git-common-dir
+git branch --show-current
+git rev-parse --show-superproject-working-tree
+```
+
+When the git directory differs from the common directory, and the checkout is
+not a submodule, the current checkout is already a linked worktree. A
+non-empty `--show-superproject-working-tree` result means the checkout is a
+submodule and should be treated as a normal repository for worktree detection.
+Continue in an existing issue worktree instead of creating a nested or
+duplicate worktree. If the checkout is a normal repository, create the issue
+worktree from current `origin/main`.
+
+Keep the worktree while the pull request is open so review feedback can be
+handled on the same branch. Cleanup happens after merge, or after an explicit
+discard decision.
+
 After a pull request is merged:
 
 ```bash
@@ -124,9 +146,29 @@ PR bodies should include:
 - a short summary of the change
 - the validation commands that were run
 - `Fixes #<issue>` or `Closes #<issue>` when the merge should close the issue
+- product or platform impact, or `None` when there is no impact
 
 Prefer small PR trains over large mixed PRs. A train may contain several
 worktrees and PRs, but each PR should still close one issue cleanly.
+
+### Review Feedback
+
+Review feedback should be handled as technical input, not as an automatic patch
+queue. Before implementing a suggestion, check whether it is correct for Banyan
+Labs' product scope, platform direction, service boundaries, and current tests.
+
+Implement clear, correct feedback directly. Push back or ask for clarification
+when feedback would:
+
+- move Base-owned workspace behavior into Banyan Labs
+- broaden a narrow PR into a platform architecture change
+- conflict with existing service contracts or validation rules
+- add unused behavior that is not required by the issue
+- force one language's library choices onto other services instead of preserving
+  cross-language operational contracts
+
+Fix one review item or related group at a time, then rerun the narrowest
+verification that proves the change.
 
 ## Milestones
 

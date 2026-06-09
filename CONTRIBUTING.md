@@ -5,6 +5,9 @@ Banyan Labs uses the same issue-first GitHub workflow as the sibling
 visible in GitHub Issues, keep pull requests small, and use Base's `basectl gh`
 helper when it supports the operation.
 
+Coding agents should also follow [AGENTS.md](AGENTS.md). Repeatable
+AI-assisted workflows live in [skills.md](skills.md).
+
 ## Workflow
 
 1. Create or choose a GitHub issue before starting implementation work.
@@ -35,9 +38,11 @@ helper when it supports the operation.
    git worktree add ../banyanlabs-worktrees/<slug> -b <branch> origin/main
    ```
 
-5. Keep the PR scoped to one issue. Avoid unrelated refactors.
-6. Link the PR back to the issue with `Fixes #<issue>`.
-7. After merge, sync `main`, remove the worktree, and delete the local and
+5. Before creating a worktree, check whether the current checkout is already a
+   linked worktree for the issue. Do not create nested or duplicate worktrees.
+6. Keep the PR scoped to one issue. Avoid unrelated refactors.
+7. Link the PR back to the issue with `Fixes #<issue>`.
+8. After merge, sync `main`, remove the worktree, and delete the local and
    remote branches.
 
 For the full policy, including milestone and GitHub Project guidance, see
@@ -77,11 +82,17 @@ shared behavior.
 Current general checks:
 
 ```bash
+tests/validate.sh
 git diff --check
 ```
 
-As Banyan Labs code returns to the repository, add project-specific checks here
-for Go, frontend, infrastructure, database migrations, and service tests.
+For Go service changes, run the relevant `go test`, `go vet`, and `go build`
+checks in the changed module. Use `CGO_ENABLED=0` unless the change explicitly
+requires CGO. For API behavior, run the Hurl/API smoke tests when relevant.
+
+Do not claim work is fixed or complete without fresh verification output from
+the current checkout or worktree. If a required check cannot be run locally,
+state that in the PR.
 
 ## Pull Request Checklist
 
@@ -90,5 +101,7 @@ Before opening a PR:
 - The branch name follows `<category>/<issue>-<YYYYMMDD>-<slug>`.
 - The PR is scoped to one issue.
 - The PR body explains what changed and how it was validated.
+- Validation commands were run from the current checkout or worktree, or
+  unavailable checks are explained.
 - Documentation is updated when behavior, setup, or workflow changes.
 - The PR includes `Fixes #<issue>` when it should close the issue.
