@@ -9,6 +9,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness endpoints
+  - name: Auth
+    description: Cookie-backed browser authentication endpoints
 paths:
   /healthz:
     get:
@@ -47,8 +49,172 @@ paths:
               description: Request identifier generated or propagated by the service.
               schema:
                 type: string
+  /auth/signup:
+    post:
+      tags:
+        - Auth
+      summary: Create a user and start a browser session
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created and session cookie set.
+          headers:
+            Set-Cookie:
+              description: HTTP-only browser session cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Authenticate a user and start a browser session
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: User authenticated and session cookie set.
+          headers:
+            Set-Cookie:
+              description: HTTP-only browser session cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: End the current browser session
+      operationId: logout
+      security:
+        - cookieAuth: []
+      responses:
+        "204":
+          description: Session deleted when present and session cookie cleared.
+          headers:
+            Set-Cookie:
+              description: Expired browser session cookie.
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: banyan_url_shortener_session
+  responses:
+    BadRequest:
+      description: Invalid request input.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Request conflicts with an existing record.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    SignupRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+          example: alice
+        email:
+          type: string
+          format: email
+          example: alice@example.com
+        password:
+          type: string
+          minLength: 1
+          format: password
+          example: correct horse battery staple
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+          example: alice
+        password:
+          type: string
+          minLength: 1
+          format: password
+          example: correct horse battery staple
+    AuthResponse:
+      type: object
+      required:
+        - user_id
+        - username
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: alice
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: invalid credentials
     HealthResponse:
       type: object
       required:

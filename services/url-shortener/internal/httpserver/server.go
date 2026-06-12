@@ -15,6 +15,10 @@ import (
 
 type App interface {
 	Health(context.Context) app.Health
+	Signup(context.Context, app.SignupInput) (app.AuthResult, error)
+	Login(context.Context, app.LoginInput) (app.AuthResult, error)
+	Logout(context.Context, string) error
+	CurrentUser(context.Context, string) (app.User, error)
 }
 
 type Options struct {
@@ -41,6 +45,9 @@ func New(options Options) *Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", server.handleHealth)
+	mux.HandleFunc("/auth/signup", server.handleSignup)
+	mux.HandleFunc("/auth/login", server.handleLogin)
+	mux.HandleFunc("/auth/logout", server.handleLogout)
 
 	server.server = &http.Server{
 		Addr:              options.Addr,

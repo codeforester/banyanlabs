@@ -45,7 +45,10 @@ type CreateSessionParams struct {
 
 type Store interface {
 	CreateUser(context.Context, CreateUserParams) (User, error)
+	FindUserByID(context.Context, int64) (User, error)
 	FindUserByUsername(context.Context, string) (User, error)
 	CreateSession(context.Context, CreateSessionParams) (Session, error)
+	FindSessionByTokenHash(context.Context, string) (Session, error)
+	TouchSessionByTokenHash(context.Context, string, time.Time) error
 	DeleteSessionByTokenHash(context.Context, string) error
 }
