@@ -134,6 +134,59 @@ func TestStoreCreatesAndDeletesSession(t *testing.T) {
 	}
 }
 
+func TestStoreFindsAndTouchesSessionByTokenHash(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t, ctx)
+	now := time.Date(2026, 6, 12, 10, 30, 0, 0, time.UTC)
+
+	user, err := store.CreateUser(ctx, storage.CreateUserParams{
+		Username:     "alice",
+		Email:        "alice@example.com",
+		PasswordHash: "hashed-password",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	created, err := store.CreateSession(ctx, storage.CreateSessionParams{
+		UserID:    user.ID,
+		TokenHash: "hashed-token",
+		CreatedAt: now,
+		ExpiresAt: now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	found, err := store.FindSessionByTokenHash(ctx, "hashed-token")
+	if err != nil {
+		t.Fatalf("find session: %v", err)
+	}
+	if found.ID != created.ID {
+		t.Fatalf("found session id = %d, want %d", found.ID, created.ID)
+	}
+	if found.LastSeenAt != nil {
+		t.Fatalf("last_seen_at = %s, want nil", found.LastSeenAt)
+	}
+
+	lastSeenAt := now.Add(time.Minute)
+	if err := store.TouchSessionByTokenHash(ctx, "hashed-token", lastSeenAt); err != nil {
+		t.Fatalf("touch session: %v", err)
+	}
+
+	touched, err := store.FindSessionByTokenHash(ctx, "hashed-token")
+	if err != nil {
+		t.Fatalf("find touched session: %v", err)
+	}
+	if touched.LastSeenAt == nil {
+		t.Fatal("last_seen_at is nil")
+	}
+	if !touched.LastSeenAt.Equal(lastSeenAt) {
+		t.Fatalf("last_seen_at = %s, want %s", touched.LastSeenAt, lastSeenAt)
+	}
+}
+
 func newTestStore(t *testing.T, ctx context.Context) *Store {
 	t.Helper()
 

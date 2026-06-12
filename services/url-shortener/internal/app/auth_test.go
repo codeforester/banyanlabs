@@ -167,6 +167,53 @@ func TestLogoutDeletesSession(t *testing.T) {
 	}
 }
 
+func TestCurrentUserReturnsUserForValidSession(t *testing.T) {
+	ctx := context.Background()
+	application, _ := newAuthTestApp(t, ctx)
+
+	signup, err := application.Signup(ctx, SignupInput{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "correct horse battery staple",
+	})
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+
+	user, err := application.CurrentUser(ctx, signup.Token)
+	if err != nil {
+		t.Fatalf("current user: %v", err)
+	}
+	if user.ID != signup.User.ID {
+		t.Fatalf("current user id = %d, want %d", user.ID, signup.User.ID)
+	}
+	if user.Username != "alice" {
+		t.Fatalf("current username = %q", user.Username)
+	}
+}
+
+func TestCurrentUserRejectsLoggedOutSession(t *testing.T) {
+	ctx := context.Background()
+	application, _ := newAuthTestApp(t, ctx)
+
+	signup, err := application.Signup(ctx, SignupInput{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "correct horse battery staple",
+	})
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if err := application.Logout(ctx, signup.Token); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+
+	_, err = application.CurrentUser(ctx, signup.Token)
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("current user error = %v, want %v", err, ErrInvalidCredentials)
+	}
+}
+
 func newAuthTestApp(t *testing.T, ctx context.Context) (*App, *sql.DB) {
 	t.Helper()
 

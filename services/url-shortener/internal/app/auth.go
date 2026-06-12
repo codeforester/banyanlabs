@@ -139,6 +139,52 @@ func (app *App) Logout(ctx context.Context, token string) error {
 	return nil
 }
 
+func (app *App) CurrentUser(ctx context.Context, token string) (User, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return User{}, ErrInvalidCredentials
+	}
+
+	store, err := app.requireStore()
+	if err != nil {
+		return User{}, err
+	}
+
+	tokenHash := hashSessionToken(token)
+	session, err := store.FindSessionByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return User{}, ErrInvalidCredentials
+		}
+		return User{}, fmt.Errorf("find session: %w", err)
+	}
+
+	now := time.Now().UTC()
+	if !session.ExpiresAt.After(now) {
+		if err := store.DeleteSessionByTokenHash(ctx, tokenHash); err != nil {
+			return User{}, fmt.Errorf("delete expired session: %w", err)
+		}
+		return User{}, ErrInvalidCredentials
+	}
+
+	user, err := store.FindUserByID(ctx, session.UserID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return User{}, ErrInvalidCredentials
+		}
+		return User{}, fmt.Errorf("find session user: %w", err)
+	}
+
+	if err := store.TouchSessionByTokenHash(ctx, tokenHash, now); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return User{}, ErrInvalidCredentials
+		}
+		return User{}, fmt.Errorf("touch session: %w", err)
+	}
+
+	return publicUser(user), nil
+}
+
 func (app *App) requireStore() (storage.Store, error) {
 	if app.store == nil {
 		return nil, ErrStorageUnavailable
