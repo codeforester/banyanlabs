@@ -45,6 +45,7 @@ func run() error {
 
 	application := app.New(app.Options{
 		Logger: logger,
+		Store:  sqlite.NewStore(db),
 	})
 	server := httpserver.New(httpserver.Options{
 		Addr:   cfg.Addr,
