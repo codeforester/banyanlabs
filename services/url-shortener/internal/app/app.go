@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"github.com/codeforester/banyanlabs/services/url-shortener/internal/storage"
 )
 
 const serviceName = "url-shortener"
@@ -11,10 +13,12 @@ const serviceName = "url-shortener"
 type App struct {
 	logger  *slog.Logger
 	started time.Time
+	store   storage.Store
 }
 
 type Options struct {
 	Logger *slog.Logger
+	Store  storage.Store
 }
 
 type Health struct {
@@ -32,6 +36,7 @@ func New(options Options) *App {
 	return &App{
 		logger:  logger.With(slog.String("component", "app")),
 		started: time.Now().UTC(),
+		store:   options.Store,
 	}
 }
 
