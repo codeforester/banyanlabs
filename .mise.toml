@@ -13,9 +13,17 @@ description = "Build the URL shortener service"
 run = "cd services/url-shortener && go build ./..."
 
 [tasks.dev]
-description = "Run the URL shortener service locally"
-run = "cd services/url-shortener && go run ./cmd/url-shortener"
+description = "Start the URL shortener service locally"
+run = "scripts/services.sh dev"
 
 [tasks.api-test]
 description = "Run URL shortener black-box API smoke tests"
 run = "tests/api/run.sh"
+
+[tasks.status]
+description = "List local Banyan Labs service status"
+run = "scripts/services.sh status"
+
+[tasks.stop]
+description = "Stop background Banyan Labs services"
+run = "scripts/services.sh stop"
