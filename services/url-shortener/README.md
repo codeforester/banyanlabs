@@ -12,6 +12,19 @@ From the repo root after `basectl setup banyanlabs`:
 basectl run banyanlabs dev
 ```
 
+That starts the service in the background. Check or stop it with:
+
+```bash
+basectl run banyanlabs status
+basectl run banyanlabs stop
+```
+
+To run the service in the foreground:
+
+```bash
+basectl run banyanlabs dev -- --foreground
+```
+
 Or directly from this service directory:
 
 ```bash
@@ -21,7 +34,8 @@ go run ./cmd/url-shortener
 Defaults:
 
 - address: `127.0.0.1:8080`
-- database: `var/url-shortener/url-shortener.sqlite3`
+- database: repo-local `var/url-shortener/url-shortener.sqlite3` when started
+  through `basectl run banyanlabs dev`
 - log level: `info`
 
 Configuration environment variables:

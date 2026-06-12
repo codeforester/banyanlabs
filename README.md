@@ -45,6 +45,15 @@ basectl test banyanlabs
 basectl run banyanlabs api-test
 basectl run banyanlabs build
 basectl run banyanlabs dev
+basectl run banyanlabs status
+basectl run banyanlabs stop
+```
+
+`basectl run banyanlabs dev` starts local services in the background. To run
+the URL shortener in the foreground instead:
+
+```bash
+basectl run banyanlabs dev -- --foreground
 ```
 
 API contracts and black-box smoke tests live with the repo:

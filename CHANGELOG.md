@@ -17,3 +17,4 @@ and versions are tracked in the repo-root `VERSION` file.
 - Added mise-managed Go runtime setup for Banyan Labs.
 - Added the URL shortener OpenAPI contract and Hurl API smoke tests.
 - Added Banyan Labs agent workflow guidance and a pull request template.
+- Added local service lifecycle commands for background dev, status, and stop.

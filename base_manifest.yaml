@@ -20,6 +20,8 @@ commands:
   api-test: mise run api-test
   build: mise run build
   dev: mise run dev
+  status: mise run status
+  stop: mise run stop
 
 artifacts:
   # Python tooling for Banyan Labs automation, tests, and service support.
